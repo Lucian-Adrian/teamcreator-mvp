@@ -28,7 +28,7 @@
 .tw-icon-button:hover { border-color: #b3c9e7; background: #f6f9fd; color: #075fd8; }
 .tw-team-layout { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,390px); align-items: stretch; gap: 16px; padding-top: 0; }
 .tw-team-map-column { min-width: 0; padding-top: 0; }
-.tw-team-map-column .team-people-map { gap: 0; }
+.tw-mobile-profile-launch { display: none; }
 .tw-inspector { min-width: 0; max-height: min(800px, calc(100vh - 205px)); overflow: auto; align-self: start; padding: 15px; border: 1px solid #e1e7ee; border-radius: 8px; background: #fff; }
 .tw-inspector-empty { min-height: 300px; display: grid; align-content: center; justify-items: center; gap: 8px; color: #8392a2; text-align: center; }
 .tw-inspector-empty strong { color: #40556c; font-size: 16px; }
@@ -391,8 +391,13 @@
   .tw-search { width: auto; flex: 1 1 180px; }
   .tw-filter-select { flex: 0 0 auto; }
   .tw-team-layout { gap: 12px; }
-  .tw-inspector { padding: 14px; }
-  .tw-back-to-map { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; margin: 0 0 10px; padding: 0 10px; border: 1px solid #dfe6ed; border-radius: 5px; background: #fff; color: #49627c; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .tw-inspector:not(.tw-inspector-empty) { max-height: min(66vh,560px); overflow: auto; overscroll-behavior: contain; scroll-margin-top: 8px; padding: 14px; border-radius: 12px; box-shadow: 0 7px 22px rgba(24,41,63,.07); }
+  .tw-back-to-map { position: sticky; top: -14px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; width: calc(100% + 28px); min-height: 39px; margin: -14px -14px 10px; padding: 0 14px; border: 0; border-bottom: 1px solid #e8edf2; border-radius: 12px 12px 0 0; background: rgba(255,255,255,.98); color: #49627c; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .tw-mobile-profile-launch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin-top: 8px; padding: 8px 10px; border: 1px solid #e1e8f1; border-radius: 8px; background: #fff; }
+  .tw-mobile-profile-launch > span { min-width: 0; display: grid; gap: 2px; }
+  .tw-mobile-profile-launch strong { overflow: hidden; color: #30465e; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+  .tw-mobile-profile-launch small { overflow: hidden; color: #7d8b9a; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .tw-mobile-profile-launch button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 0 10px; border: 1px solid #d8e4f4; border-radius: 6px; background: #f7faff; color: #135bc2; font-size: 13px; font-weight: 650; cursor: pointer; }
   .tw-task-list-view { overflow: visible; border: 0; background: transparent; }
   .tw-task-list-header { display: none; }
   .tw-task-list-group { margin-bottom: 12px; border: 1px solid #e1e7ed; border-radius: 6px; background: #fff; }

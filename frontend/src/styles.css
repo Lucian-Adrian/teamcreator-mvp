@@ -1431,3 +1431,49 @@ h1, h2, h3, p { margin-top: 0; }
   .burndown-heading { flex-direction: column; }
 }
 
+/* Phone shell: preserve the active project and keep all four destinations visible. */
+@media (max-width: 650px) {
+  .app-shell .app-header { position: sticky; top: 0; z-index: 40; min-height: 0; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: 36px 48px; gap: 5px 8px; padding: 7px 12px 0; background: rgba(255,255,255,.98); }
+  .app-shell .app-header .header-brand-project { grid-column: 1; grid-row: 1; min-width: 0; flex-wrap: nowrap; justify-content: flex-start; align-items: center; gap: 7px; }
+  .app-shell .app-header .brand-logo { width: clamp(106px,31vw,120px); height: 33px; flex: 0 0 auto; object-fit: contain; }
+  .app-shell .app-header .project-picker { width: auto; min-width: 0; flex: 1 1 0; padding-left: 7px; border-left: 1px solid #d5dfef; }
+  .app-shell .app-header .project-picker select { width: 100%; min-width: 0; max-width: none; height: 32px; padding: 0 20px 0 7px; border-radius: 6px; font-size: 10.5px; }
+  .app-shell .app-header .project-picker > svg { right: 5px; width: 13px; }
+  .app-shell .app-header .header-actions { grid-column: 2; grid-row: 1; align-self: center; display: flex; flex-direction: row; align-items: center; gap: 2px; min-width: 0; overflow: visible; padding: 0; }
+  .app-shell .app-header .header-back { width: 27px; min-width: 27px; height: 30px; min-height: 30px; padding: 0 4px; justify-content: center; }
+  .app-shell .app-header .header-back span { display: none; }
+  .app-shell .app-header .header-utilities { display: flex; flex: 0 0 auto; align-items: center; gap: 0; }
+  .app-shell .app-header .header-action { width: 25px; min-width: 25px; height: 30px; padding: 0; border: 0; border-radius: 5px; }
+  .app-shell .app-header .header-action svg { width: 15px; height: 15px; }
+  .app-shell .app-header .workflow-tabs { grid-column: 1/-1; grid-row: 2; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); width: 100%; height: 48px; justify-self: stretch; align-items: stretch; gap: 0; margin: 0; padding: 0; overflow: visible; }
+  .app-shell .app-header .workflow-tab { display: inline-flex; min-width: 0; align-items: center; justify-content: center; gap: 4px; padding: 0 2px; border-bottom: 3px solid transparent; font-size: 13px; white-space: nowrap; }
+  .app-shell .app-header .workflow-tab-active { border-bottom-color: var(--blue); color: var(--blue); }
+  .app-shell .app-header .workflow-tab-icon { display: inline-flex; flex: 0 0 15px; align-items: center; justify-content: center; }
+  .app-shell .app-header .workflow-tab-icon svg { width: 15px; height: 15px; }
+  .app-shell .app-header .workflow-tab-number { display: none; }
+  .app-shell .app-header .workflow-tab-label { overflow: visible; font-size: clamp(11.5px,3.35vw,13px); line-height: 1.2; white-space: nowrap; }
+  .app-shell .app-header .workflow-tab-count { position: static; flex: 0 0 auto; min-width: 12px; width: auto; height: 14px; margin-left: -2px; padding: 0 2px; border-radius: 8px; font-size: 9px; }
+  .app-shell .content-area { width: 100%; padding: 16px 14px 28px; }
+}
+
+@media (max-width: 370px) {
+  .app-shell .app-header { padding-inline: 10px; column-gap: 6px; }
+  .app-shell .app-header .header-actions { gap: 0; }
+  .app-shell .app-header .header-back { width: 25px; min-width: 25px; }
+  .app-shell .app-header .header-action { width: 23px; min-width: 23px; }
+  .app-shell .app-header .workflow-tab { gap: 2px; padding-inline: 1px; }
+  .app-shell .app-header .workflow-tab-icon,.app-shell .app-header .workflow-tab-icon svg { width: 14px; height: 14px; }
+  .app-shell .app-header .workflow-tab-icon { flex-basis: 14px; }
+  .app-shell .app-header .workflow-tab-label { font-size: 11.5px; }
+}
+
+.app-shell .app-header .workflow-tab,
+.app-shell .app-header .workflow-tab-icon svg { transition: color .14s ease, border-color .14s ease, transform .14s ease; }
+.app-shell .app-header .workflow-tab-active .workflow-tab-icon svg { transform: scale(1.04); }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .app-header .workflow-tab,
+  .app-shell .app-header .workflow-tab-icon svg { transition: none; }
+  .app-shell .app-header .workflow-tab-active .workflow-tab-icon svg { transform: none; }
+  .team-workspace .tw-inspector { scroll-behavior: auto; }
+}
+

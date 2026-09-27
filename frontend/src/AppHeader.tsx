@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, ChevronDown, Download, Plus, Upload } from 'lucide-react';
+import { Activity, ArrowLeft, ChevronDown, Download, Folder, LayoutDashboard, Plus, Upload, Users } from 'lucide-react';
 
 export type WorkflowPage = 'context' | 'map' | 'simulation' | 'diagnostic';
 
@@ -24,12 +24,12 @@ interface AppHeaderProps {
   exportMenu: React.ReactNode;
 }
 
-const stages: { id: WorkflowPage; label: string; accessibleLabel?: string }[] = [
-  { id: 'context', label: 'Context' },
-  { id: 'map', label: 'Hartă' },
-  { id: 'simulation', label: 'Simulare' },
-  { id: 'diagnostic', label: 'Decizii', accessibleLabel: 'Decizii și rapoarte' },
-];
+const stages = [
+  { id: 'context', label: 'Context', icon: Folder },
+  { id: 'map', label: 'Echipă', icon: Users },
+  { id: 'simulation', label: 'Simulare', icon: Activity },
+  { id: 'diagnostic', label: 'Decizii', icon: LayoutDashboard },
+] as const;
 
 /** The same project identity, navigation and working actions on every screen. */
 export default function AppHeader(props: AppHeaderProps) {
@@ -46,10 +46,11 @@ export default function AppHeader(props: AppHeaderProps) {
     <nav className="workflow-tabs" aria-label="Navigarea proiectului">
       {stages.map((stage, index) => <button key={stage.id}
         className={`workflow-tab ${props.page === stage.id ? 'workflow-tab-active' : ''}`}
-        aria-label={stage.accessibleLabel || stage.label}
+        aria-label={stage.label}
         aria-current={props.page === stage.id ? 'page' : undefined}
         onClick={() => props.onPageChange(stage.id)}>
         <span className="workflow-tab-number">{String(index + 1).padStart(2, '0')}</span>
+        <span className="workflow-tab-icon" aria-hidden="true"><stage.icon size={16} strokeWidth={1.8} /></span>
         <span className="workflow-tab-label">{stage.label}</span>
         <span className="workflow-tab-track" aria-hidden="true"><i /></span>
         {stage.id === 'context' && props.pendingCount > 0 && <span className="workflow-tab-count">{props.pendingCount}</span>}
