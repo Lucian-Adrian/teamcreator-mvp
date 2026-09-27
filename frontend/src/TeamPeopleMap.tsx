@@ -6,6 +6,7 @@ type Props = {
   workspace: ProjectWorkspace;
   selectedMemberId: string | null;
   onSelectMember: (id: string) => void;
+  onSelectRelation?: (id: string) => void;
 };
 
 type FlowKind = 'handoff' | 'review' | 'approval' | 'unknown';
@@ -48,8 +49,8 @@ function memberPositions(memberIds: string[], focusId: string | null) {
   ring.forEach((id, index) => {
     const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(1, ring.length);
     positions.set(id, {
-      x: 50 + Math.cos(angle) * 35,
-      y: 50 + Math.sin(angle) * 34,
+      x: 50 + Math.cos(angle) * (memberIds.length > 8 ? 40 : 35),
+      y: 50 + Math.sin(angle) * 31,
     });
   });
   return positions;
@@ -57,15 +58,15 @@ function memberPositions(memberIds: string[], focusId: string | null) {
 
 function clippedSegment(from: Point, to: Point) {
   const ax = from.x * 10;
-  const ay = from.y * 6.4;
+  const ay = from.y * 7.2;
   const bx = to.x * 10;
-  const by = to.y * 6.4;
+  const by = to.y * 7.2;
   const dx = bx - ax;
   const dy = by - ay;
   const length = Math.max(1, Math.hypot(dx, dy));
   const ux = dx / length;
   const uy = dy / length;
-  const clip = (vx: number, vy: number) => 1 / Math.max(Math.abs(vx) / 132, Math.abs(vy) / 92);
+  const clip = (vx: number, vy: number) => 1 / Math.max(Math.abs(vx) / 112, Math.abs(vy) / 112);
   const startDistance = clip(ux, uy);
   const endDistance = clip(-ux, -uy);
   return {
@@ -86,7 +87,7 @@ function avatarPosition(member: ProjectRecord) {
   } as const)[crop];
 }
 
-export default function TeamPeopleMap({ workspace, selectedMemberId, onSelectMember }: Props) {
+export default function TeamPeopleMap({ workspace, selectedMemberId, onSelectMember, onSelectRelation }: Props) {
   const markerPrefix = useId().replace(/:/g, '');
   const members = workspace.members.filter((member) => member.title?.trim());
   const memberById = new Map(members.map((member) => [member.id, member]));
@@ -165,49 +166,61 @@ export default function TeamPeopleMap({ workspace, selectedMemberId, onSelectMem
   const positions = memberPositions(members.map((member) => member.id), focusId);
   const workCount = (memberId: string) => records.filter((record) => memberFor(record) === memberId).length;
   const edgeColors: Record<FlowKind, string> = { handoff: '#28a879', review: '#3177d2', approval: '#8a60b0', unknown: '#8492a1' };
+  const flowLayouts = flows.map((flow, index) => {
+    const from = positions.get(flow.fromId); const to = positions.get(flow.toId);
+    if (!from || !to) return null;
+    const { start, end } = clippedSegment(from, to);
+    const dx = end.x - start.x; const dy = end.y - start.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    const unrelatedToFocus = flow.fromId !== focusId && flow.toId !== focusId;
+    const centerDistance = Math.hypot(midpoint.x - 500, midpoint.y - 360);
+    const px = -dy / length; const py = dx / length;
+    const outwardDot = (midpoint.x - 500) * px + (midpoint.y - 360) * py;
+    const sign = Math.abs(outwardDot) < 1 ? (index % 2 === 0 ? 1 : -1) : outwardDot >= 0 ? 1 : -1;
+    const curveOffset = unrelatedToFocus && centerDistance < 205 ? 360 : ((index % 3) - 1) * 28;
+    const cx = midpoint.x - dy / length * curveOffset * sign;
+    const cy = midpoint.y + dx / length * curveOffset * sign;
+    return { flow, start, end, cx, cy };
+  }).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const focusPoint = positions.get(focusId || '');
+  const badgeGroups = new Map<string, MemberFlow[]>();
+  for (const flow of flows) {
+    if (flow.fromId !== focusId && flow.toId !== focusId) continue;
+    const otherId = flow.fromId === focusId ? flow.toId : flow.fromId;
+    badgeGroups.set(otherId, [...(badgeGroups.get(otherId) || []), flow]);
+  }
+  const relationBadges = [...badgeGroups.entries()].flatMap(([otherId, relatedFlows]) => {
+    const otherPoint = positions.get(otherId);
+    if (!focusPoint || !otherPoint) return [];
+    const kinds = [...new Set(relatedFlows.map((flow) => flow.kind))];
+    const taskTitles = [...new Set(relatedFlows.flatMap((flow) => flow.tasks))];
+    const sourceCount = new Set(relatedFlows.flatMap((flow) => flow.sources.map((ref) => `${ref.source_id}\u0000${ref.location || ''}\u0000${ref.quote || ''}`))).size;
+    const angle = Math.atan2(otherPoint.y - focusPoint.y, otherPoint.x - focusPoint.x);
+    return [{
+      otherId,
+      kind: kinds.length === 1 ? kinds[0] : 'unknown' as FlowKind,
+      label: kinds.length === 1 ? flowLabels[kinds[0]] : 'Relații',
+      taskCount: taskTitles.length,
+      sourceCount,
+      angle,
+      x: (focusPoint.x + otherPoint.x) / 2,
+      y: (focusPoint.y + otherPoint.y) / 2,
+    }];
+  }).sort((a, b) => a.angle - b.angle);
 
   if (!members.length) return <section className="team-people-map team-people-map-empty"><strong>Nu există persoane înregistrate.</strong><p>Harta va apărea când proiectul are membri și dependențe documentate.</p></section>;
 
   return <section className="team-people-map" aria-label="Harta relațiilor dintre membrii echipei">
     <div className="tpm-stage" aria-label="Membrii și relațiile lor de lucru">
-      <svg className="tpm-edges" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-hidden="true">
+      <svg className="tpm-edges" viewBox="0 0 1000 720" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           {Object.entries(edgeColors).map(([kind, color]) => <marker key={kind} id={`${markerPrefix}-${kind}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill={color} /></marker>)}
         </defs>
-        {flows.map((flow, index) => {
-          const from = positions.get(flow.fromId);
-          const to = positions.get(flow.toId);
-          if (!from || !to) return null;
-          const { start, end } = clippedSegment(from, to);
-          const dx = end.x - start.x;
-          const dy = end.y - start.y;
-          const length = Math.max(1, Math.hypot(dx, dy));
-          const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-          const unrelatedToFocus = flow.fromId !== focusId && flow.toId !== focusId;
-          const centerDistance = Math.hypot(midpoint.x - 500, midpoint.y - 320);
-          const px = -dy / length; const py = dx / length;
-          const outwardDot = (midpoint.x - 500) * px + (midpoint.y - 320) * py;
-          const sign = Math.abs(outwardDot) < 1 ? (index % 2 === 0 ? 1 : -1) : outwardDot >= 0 ? 1 : -1;
-          const curveOffset = unrelatedToFocus && centerDistance < 205 ? 360 : ((index % 3) - 1) * 28;
-          const cx = midpoint.x - (dy / length) * curveOffset * sign;
-          const cy = midpoint.y + (dx / length) * curveOffset * sign;
-          const labelT = flow.fromId === focusId ? 0.62 : 0.38;
-          const inverseT = 1 - labelT;
-          const lx = inverseT * inverseT * start.x + 2 * inverseT * labelT * cx + labelT * labelT * end.x;
-          const ly = inverseT * inverseT * start.y + 2 * inverseT * labelT * cy + labelT * labelT * end.y;
-          const involved = !selectedMemberId || flow.fromId === selectedMemberId || flow.toId === selectedMemberId;
-          const showLabel = flow.fromId === focusId || flow.toId === focusId;
-          const label = flowLabels[flow.kind];
-          return <g key={flow.key} className={`tpm-flow tpm-flow-${flow.kind}`} opacity={involved ? 0.95 : 0.7}>
-            <title>{`${memberById.get(flow.fromId)?.title} către ${memberById.get(flow.toId)?.title}: ${label.toLocaleLowerCase()}, ${flow.tasks.length} ${flow.tasks.length === 1 ? 'sarcină' : 'sarcini'}${flow.sources.length ? `, ${flow.sources.length} ${flow.sources.length === 1 ? 'citat' : 'citate'}` : ', fără citat de relație'}`}</title>
-            <path d={`M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`} stroke={edgeColors[flow.kind]} markerEnd={`url(#${markerPrefix}-${flow.kind})`} />
-            {showLabel && <g className="tpm-edge-label" transform={`translate(${lx},${ly})`}>
-              <rect x="-54" y={flow.sources.length ? '-18' : '-12'} width="108" height={flow.sources.length ? '36' : '24'} rx="12" />
-              <text y={flow.sources.length ? '-3' : '4'}>{label} · {flow.tasks.length}</text>
-              {flow.sources.length > 0 && <text className="tpm-edge-source-count" y="10">{flow.sources.length} {flow.sources.length === 1 ? 'sursă' : 'surse'}</text>}
-            </g>}
-          </g>;
-        })}
+        {flowLayouts.map(({ flow, start, end, cx, cy }) => <g key={flow.key} className={`tpm-flow tpm-flow-${flow.kind}`} opacity={!selectedMemberId || flow.fromId === selectedMemberId || flow.toId === selectedMemberId ? 0.95 : 0.7}>
+          <title>{`${memberById.get(flow.fromId)?.title} către ${memberById.get(flow.toId)?.title}: ${flowLabels[flow.kind].toLocaleLowerCase()}, ${flow.tasks.length} ${flow.tasks.length === 1 ? 'sarcină' : 'sarcini'}${flow.sources.length ? `, ${flow.sources.length} ${flow.sources.length === 1 ? 'citat' : 'citate'}` : ', fără citat de relație'}`}</title>
+          <path d={`M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`} stroke={edgeColors[flow.kind]} markerEnd={`url(#${markerPrefix}-${flow.kind})`} />
+        </g>)}
       </svg>
       {members.map((member) => {
         const position = positions.get(member.id)!;
@@ -228,13 +241,21 @@ export default function TeamPeopleMap({ workspace, selectedMemberId, onSelectMem
           {illustration && <span className="tpm-illustrative-mark" aria-label="Portret ilustrativ">ilustrativ</span>}
         </button>;
       })}
+      {onSelectRelation && <div className="tpm-label-layer" aria-label="Relații selectabile">
+        {relationBadges.map((badge) => {
+          const countLabel = badge.taskCount === 1 ? '1 sarcină' : `${badge.taskCount} sarcini`;
+          return <button key={badge.otherId} type="button" className={`tpm-edge-control tpm-control-${badge.kind}`} style={{ left: `${badge.x}%`, top: `${badge.y}%` }} aria-label={`${badge.label}, ${countLabel}. Deschide relația cu ${memberById.get(badge.otherId)?.title || 'celălalt responsabil'}`} onClick={() => onSelectRelation(badge.otherId)}>
+            <span>{badge.label} · {countLabel}</span>{badge.sourceCount > 0 && <small>{badge.sourceCount} {badge.sourceCount === 1 ? 'sursă' : 'surse'}</small>}
+          </button>;
+        })}
+      </div>}
       {!flows.length && <div className="tpm-no-flows">Nu există încă legături documentate între responsabili diferiți.</div>}
     </div>
     <div className="tpm-mobile-relations" aria-label="Relații agregate">
-      {flows.length ? flows.map((flow) => <article key={flow.key} className={`tpm-mobile-relation tpm-mobile-${flow.kind}`}>
+      {flows.length ? flows.map((flow) => <button type="button" aria-label={`Deschide relația ${memberById.get(flow.fromId)?.title} către ${memberById.get(flow.toId)?.title}: ${flowLabels[flow.kind]}, ${flow.tasks.length} sarcini`} onClick={() => onSelectRelation?.(flow.fromId === focusId ? flow.toId : flow.fromId)} key={flow.key} className={`tpm-mobile-relation tpm-mobile-${flow.kind}`}>
         <strong>{memberById.get(flow.fromId)?.title}</strong><span>{flowLabels[flow.kind]} · {flow.tasks.length}</span><strong>{memberById.get(flow.toId)?.title}</strong>
         <small>{flow.tasks.join(' · ')}{flow.sources.length ? ` · ${flow.sources.length} surse legate` : ''}</small>
-      </article>) : <p>Nu există încă legături documentate între responsabili diferiți.</p>}
+      </button>) : <p>Nu există încă legături documentate între responsabili diferiți.</p>}
     </div>
     <footer className="tpm-foot">
       <div className="tpm-legend" aria-label="Tipuri de relații"><span><i className="tpm-legend-handoff" />Predare</span><span><i className="tpm-legend-review" />Revizuire</span><span><i className="tpm-legend-approval" />Aprobare</span><span><i className="tpm-legend-unknown" />Dependență fără tip clar</span></div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, AlertCircle, AlertTriangle, ArrowDown, ArrowRight, ArrowUpRight, CalendarDays,
+  Activity, AlertCircle, AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays,
   Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Clock3, FileText, Filter,
   GitBranch, LayoutDashboard, List, LoaderCircle, Network, Plus, Search, Settings2,
   ShieldCheck, Users, X,
@@ -15,6 +15,7 @@ import './team-workspace.css';
 type Group = 'team' | 'tasks';
 type TaskView = 'list' | 'gantt' | 'kanban' | 'burndown' | 'priorities';
 type MemberPanel = 'profile' | 'tasks' | 'relations';
+export type TeamViewState = { group: 'team' | 'tasks'; taskView: 'list' | 'gantt' | 'kanban' | 'burndown' | 'priorities'; memberId?: string; taskId?: string };
 type Props = {
   workspace: ProjectWorkspace;
   onOpenSource: (ref: SourceRef) => void;
@@ -23,6 +24,8 @@ type Props = {
   onOpenDecision?: (recordId: string) => void;
   simulationOutput: SimulationOutput | null;
   focusedRecord?: { kind: string; id: string } | null;
+  viewState?: TeamViewState;
+  onViewStateChange?: (next: TeamViewState) => void;
 };
 
 type GroupedRelation = {
@@ -329,10 +332,33 @@ function TaskFilter({ statusFilter, setStatusFilter }: { statusFilter: string; s
 }
 
 function TaskListView({ tasks, workspace, selectedTaskId, onSelect }: { tasks: ProjectRecord[]; workspace: ProjectWorkspace; selectedTaskId: string | null; onSelect: (id: string) => void }) {
-  return <div className="tw-task-list-view"><div className="tw-task-list-header"><span>#</span><span>Sarcină</span><span>Responsabil</span><span>Termen</span><span>Stare</span><span /></div>{tasks.map((task, index) => {
-    const owner = ownerFor(task, workspace); const deadline = taskDeadline(task);
-    return <button type="button" key={task.id} className={`tw-task-list-row${task.id === selectedTaskId ? ' is-selected' : ''}`} onClick={() => onSelect(task.id)}><span className="tw-task-index">{String(index + 1).padStart(2, '0')}</span><span className="tw-task-row-title"><strong>{task.title}</strong><small>{task.planned_duration_days != null ? `Durată · ${task.planned_duration_days} zile` : 'Durată necunoscută'}{task.effort_hours != null ? ` · Efort · ${task.effort_hours} h` : ''}</small></span><span className="tw-task-owner"><Avatar member={owner} size={34} />{owner?.title || ownerLabel(task)}</span><span className="tw-task-deadline">{deadline ? <><strong>{formatDate(deadline.date)}</strong><small>{deadline.label}</small></> : 'Necunoscut'}</span><span><StatusPill status={task.status} /></span><ChevronRight size={16} /></button>;
-  })}{!tasks.length && <div className="tw-empty-state">Nu există sarcini care corespund căutării și filtrului.</div>}</div>;
+  const groupDefinitions: Array<{ id: ReturnType<typeof taskBucket>; title: string }> = [
+    { id: 'planned', title: 'De început' }, { id: 'active', title: 'În lucru' }, { id: 'review', title: 'În revizuire' }, { id: 'waiting', title: 'În așteptare' }, { id: 'done', title: 'Finalizat' },
+  ];
+  const groups = groupDefinitions.map((group) => ({ ...group, count: tasks.filter((task) => taskBucket(task) === group.id).length }));
+  const indexById = new Map(tasks.map((task, index) => [task.id, index + 1]));
+  return <div className="tw-task-list-view" role="table" aria-label="Registrul sarcinilor">
+    <div className="tw-task-list-header" role="row"><span role="columnheader">Nr.</span><span role="columnheader">Sarcină</span><span role="columnheader">Responsabil</span><span role="columnheader">Plan / termen</span><span role="columnheader">Efort</span><span role="columnheader">Stare</span><span aria-hidden="true" /></div>
+    {groups.filter((group) => group.count > 0).map((group) => <section className={`tw-task-list-group tw-task-list-group-${group.id}`} key={group.id}>
+      <header className="tw-task-list-group-header"><i /><strong>{group.title}</strong><span>{group.count}</span></header>
+      {tasks.filter((task) => taskBucket(task) === group.id).map((task) => {
+        const owner = ownerFor(task, workspace); const deadline = taskDeadline(task); const index = indexById.get(task.id) || 0;
+        const duration = Number.isFinite(task.planned_duration_days) ? `${task.planned_duration_days} zile` : 'Necunoscută';
+        return <div className="tw-task-table-row" role="row" key={task.id}>
+          <span className="tw-task-index" role="cell">{String(index).padStart(2, '0')}</span>
+          <button type="button" role="cell" aria-pressed={task.id === selectedTaskId} className={`tw-task-list-row${task.id === selectedTaskId ? ' is-selected' : ''}`} onClick={() => onSelect(task.id)}>
+            <span className="tw-task-row-title"><strong>{task.title}</strong><small><span>{duration} planificate</span>{task.depends_on?.length ? <span>{task.depends_on.length} {task.depends_on.length === 1 ? 'dependență' : 'dependențe'}</span> : null}</small></span>
+            <span className="tw-task-owner"><Avatar member={owner} size={34} /><span>{owner?.title || ownerLabel(task)}</span></span>
+            <span className="tw-task-dates"><span><small>Start</small><strong>{task.planned_start ? formatDate(task.planned_start, { day: '2-digit', month: 'short' }) : 'Necunoscut'}</strong></span><span><small>Termen</small><strong>{deadline ? formatDate(deadline.date, { day: '2-digit', month: 'short' }) : 'Necunoscut'}</strong>{deadline && <em>{deadline.label}</em>}</span></span>
+            <span className={`tw-task-effort${task.effort_hours == null ? ' is-unknown' : ''}`}>{task.effort_hours != null ? <><strong>{task.effort_hours} h</strong><small>consemnat</small></> : 'Necunoscut'}</span>
+            <span className="tw-task-row-status"><StatusPill status={task.status} /></span>
+            <ChevronRight className="tw-task-row-chevron" size={17} />
+          </button>
+        </div>;
+      })}
+    </section>)}
+    {!tasks.length && <div className="tw-empty-state">Nu există sarcini care corespund căutării și filtrului.</div>}
+  </div>;
 }
 
 function StatusPill({ status }: { status?: string | null }) {
@@ -597,27 +623,44 @@ function SelectedTaskStrip({ task, workspace, onClose, onOpenSource, onSave, onS
     finally { setBusy(false); }
   };
   return <section className="tw-selected-task" aria-label={`Detalii sarcină ${task.title}`}>
-    <div className="tw-selected-main"><div className="tw-selected-title"><span className={`tw-selected-mark tw-mark-${taskBucket(task)}`} /><div><small>Sarcină selectată</small><h2>{task.title}</h2><span>{statusLabel(task.status)} · {ownerLabel(task)} · {taskDeadline(task) ? formatDate(taskDeadline(task)?.date) : 'Termen necunoscut'}</span></div></div><div className="tw-selected-meta"><span><strong>Durată</strong>{task.planned_duration_days != null ? `${task.planned_duration_days} zile` : 'Necunoscută'}</span><span><strong>Efort</strong>{task.effort_hours != null ? `${task.effort_hours} h` : 'Necunoscut'}</span></div><div className="tw-selected-dependencies"><strong>Depinde de</strong>{dependencies.length ? dependencies.map((item) => <button type="button" key={item.id} onClick={() => onSelectDependency(item.id)}>{item.title} <ChevronRight size={13} /></button>) : <span>Nu sunt dependențe consemnate</span>}</div><div className="tw-selected-sources"><strong>Sursă</strong><ListSourceLinks task={task} workspace={workspace} onOpenSource={onOpenSource} /></div><div className="tw-selected-actions"><button type="button" className="tw-secondary-button" onClick={() => setEditing((value) => !value)}><Settings2 size={15} /> Editează</button>{linkedDecision && onOpenDecision && <button type="button" className="tw-primary-button" onClick={() => onOpenDecision(linkedDecision.id)}>Vezi decizia <ArrowRight size={14} /></button>}<button type="button" className="tw-close-task" aria-label="Închide detaliile sarcinii" onClick={onClose}><X size={16} /></button></div></div>
+    <div className="tw-selected-main"><div className="tw-selected-title"><span className={`tw-selected-mark tw-mark-${taskBucket(task)}`} /><div><small>Sarcină selectată</small><h2>{task.title}</h2><span>{statusLabel(task.status)} · {ownerLabel(task)} · {taskDeadline(task) ? formatDate(taskDeadline(task)?.date) : 'Termen necunoscut'}</span></div></div><div className="tw-selected-meta"><span><strong>Durată</strong>{task.planned_duration_days != null ? `${task.planned_duration_days} zile` : 'Necunoscută'}</span><span><strong>Efort</strong>{task.effort_hours != null ? `${task.effort_hours} h` : 'Necunoscut'}</span></div><div className="tw-selected-dependencies"><strong>Depinde de</strong>{dependencies.length ? dependencies.map((item) => <button type="button" key={item.id} onClick={() => onSelectDependency(item.id)}>{item.title} <ChevronRight size={13} /></button>) : <span>Nu sunt dependențe consemnate</span>}</div><div className="tw-selected-sources"><strong>Sursă</strong><ListSourceLinks task={task} workspace={workspace} onOpenSource={onOpenSource} /></div><div className="tw-selected-actions"><button type="button" className="tw-back-to-tasks" onClick={onClose}><ArrowLeft size={15} /> Înapoi la sarcini</button><button type="button" className="tw-secondary-button" onClick={() => setEditing((value) => !value)}><Settings2 size={15} /> Editează</button>{linkedDecision && onOpenDecision && <button type="button" className="tw-primary-button" onClick={() => onOpenDecision(linkedDecision.id)}>Vezi decizia <ArrowRight size={14} /></button>}<button type="button" className="tw-close-task" aria-label="Închide detaliile sarcinii" onClick={onClose}><X size={16} /></button></div></div>
     {editing && <form className="tw-task-editor" onSubmit={save}><div className="tw-form-grid"><label className="tw-field">Titlu<input value={title} onChange={(event) => setTitle(event.target.value)} required /></label><label className="tw-field">Responsabil<select value={owner} onChange={(event) => setOwner(event.target.value)}><option value="">Necunoscut</option>{workspace.members.map((member) => <option key={member.id} value={member.title}>{member.title}</option>)}</select></label><label className="tw-field">Stare<input value={status} onChange={(event) => setStatus(event.target.value)} placeholder="Stare raportată" /></label><label className="tw-field">Termen curent<input type="date" value={due} onChange={(event) => setDue(event.target.value)} /></label><label className="tw-field">Început planificat<input type="date" value={plannedStart} onChange={(event) => setPlannedStart(event.target.value)} /></label><label className="tw-field">Durată planificată, zile<input type="number" min="0" step="0.5" value={duration} onChange={(event) => setDuration(event.target.value)} /></label><label className="tw-field">Efort consemnat, ore<input type="number" min="0" step="0.5" value={effort} onChange={(event) => setEffort(event.target.value)} /></label><label className="tw-field tw-field-wide">Motiv pentru istoric<input value={reason} onChange={(event) => setReason(event.target.value)} required placeholder="Confirmare sau corectare de către manager" /></label></div>{error && <p className="tw-form-error">{error}</p>}<div className="tw-form-actions"><button type="button" className="tw-secondary-button" onClick={() => setEditing(false)} disabled={busy}>Anulează</button><button type="submit" className="tw-primary-button" disabled={busy}>{busy ? <LoaderCircle size={15} className="tw-spin" /> : <Check size={15} />} Salvează modificarea</button></div></form>}
   </section>;
 }
 
-export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreate, onOpenDecision, simulationOutput, focusedRecord }: Props) {
-  const [group, setGroup] = useState<Group>('team');
-  const [taskView, setTaskView] = useState<TaskView>('list');
+export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreate, onOpenDecision, simulationOutput, focusedRecord, viewState, onViewStateChange }: Props) {
+  const [group, setGroup] = useState<Group>(viewState?.group || 'team');
+  const [taskView, setTaskView] = useState<TaskView>(viewState?.taskView || 'list');
   const [memberPanel, setMemberPanel] = useState<MemberPanel>('profile');
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(workspace.members[0]?.id || null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(viewState?.memberId || workspace.members[0]?.id || null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(viewState?.taskId || null);
   const inspectorRef = useRef<HTMLElement | null>(null);
+  const lastAppliedFocus = useRef<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const applyViewState = (next: TeamViewState) => {
+    setGroup(next.group); setTaskView(next.taskView); setSelectedMemberId(next.memberId || null); setSelectedTaskId(next.taskId || null);
+    onViewStateChange?.(next);
+  };
+  const changeView = (patch: Partial<TeamViewState>) => {
+    const next: TeamViewState = { group, taskView, ...(selectedMemberId ? { memberId: selectedMemberId } : {}), ...(selectedTaskId ? { taskId: selectedTaskId } : {}), ...patch };
+    applyViewState(next);
+  };
+  useEffect(() => {
+    if (!viewState) return;
+    setGroup(viewState.group); setTaskView(viewState.taskView);
+    setSelectedMemberId(viewState.memberId || null); setSelectedTaskId(viewState.taskId || null);
+  }, [viewState?.group, viewState?.taskView, viewState?.memberId, viewState?.taskId]);
   useEffect(() => { if (!workspace.members.some((member) => member.id === selectedMemberId)) setSelectedMemberId(workspace.members[0]?.id || null); }, [workspace.members, selectedMemberId]);
   useEffect(() => {
-    if (!focusedRecord?.id) return;
+    if (viewState) return;
+    if (!focusedRecord?.id) { lastAppliedFocus.current = null; return; }
+    const focusKey = `${focusedRecord.kind.toLocaleLowerCase()}\u0000${focusedRecord.id}`;
+    if (lastAppliedFocus.current === focusKey) return;
     const kind = focusedRecord.kind.toLocaleLowerCase();
-    if (kind === 'member' && workspace.members.some((member) => member.id === focusedRecord.id)) { setGroup('team'); setSelectedMemberId(focusedRecord.id); setMemberPanel('profile'); }
-    else if ((kind === 'task' || kind === 'deliverable') && (workspace.tasks.some((task) => task.id === focusedRecord.id) || workspace.deliverables.some((item) => item.id === focusedRecord.id))) { setGroup('tasks'); setTaskView('list'); setSelectedTaskId(focusedRecord.id); }
-  }, [focusedRecord?.kind, focusedRecord?.id, workspace.members, workspace.tasks, workspace.deliverables]);
+    if (kind === 'member' && workspace.members.some((member) => member.id === focusedRecord.id)) { setGroup('team'); setSelectedMemberId(focusedRecord.id); setSelectedTaskId(null); setMemberPanel('profile'); lastAppliedFocus.current = focusKey; }
+    else if ((kind === 'task' || kind === 'deliverable') && (workspace.tasks.some((task) => task.id === focusedRecord.id) || workspace.deliverables.some((item) => item.id === focusedRecord.id))) { setGroup('tasks'); setTaskView('list'); setSelectedTaskId(focusedRecord.id); lastAppliedFocus.current = focusKey; }
+  }, [focusedRecord?.kind, focusedRecord?.id, workspace.members, workspace.tasks, workspace.deliverables, viewState?.group, viewState?.taskView, viewState?.memberId, viewState?.taskId]);
   const allTasks = workspace.tasks;
   const selectedMember = workspace.members.find((member) => member.id === selectedMemberId) || null;
   const filteredTasks = useMemo(() => allTasks.filter((task) => {
@@ -626,20 +669,20 @@ export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreat
     return (!search.trim() || haystack.includes(normalize(search))) && (statusFilter === 'all' || taskBucket(task) === statusFilter);
   }), [allTasks, workspace, search, statusFilter]);
   const selectedTask = [...allTasks, ...workspace.deliverables].find((task) => task.id === selectedTaskId) || null;
-  const setTask = (id: string) => setSelectedTaskId(id || null);
+  const setTask = (id: string) => changeView({ group: 'tasks', memberId: undefined, taskId: id || undefined });
   const linkedTaskDependencies = selectedTask?.depends_on || [];
   const taskSet = new Set(filteredTasks.map((task) => task.id));
 
   return <section className="team-workspace">
     <header className="tw-page-head"><h1>{group === 'team' ? 'Echipă' : 'Sarcini'}</h1>{group === 'team' && <button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={17} /> Membru</button>}</header>
     <div className="tw-toolbar">
-      <div className="tw-group-tabs" role="tablist" aria-label="Spații de lucru"><button type="button" role="tab" aria-selected={group === 'team'} className={group === 'team' ? 'is-active' : ''} onClick={() => setGroup('team')}>Echipă</button><button type="button" role="tab" aria-selected={group === 'tasks'} className={group === 'tasks' ? 'is-active' : ''} onClick={() => setGroup('tasks')}>Sarcini</button></div>
-      {group === 'tasks' && <div className="tw-task-view-tabs" role="tablist" aria-label="Vederi pentru același registru de sarcini">{taskViews.map(({ id, label, icon: Icon }) => <button type="button" role="tab" aria-selected={taskView === id} className={taskView === id ? 'is-active' : ''} key={id} onClick={() => setTaskView(id)}><Icon size={15} />{label}</button>)}</div>}
+      <div className="tw-group-tabs" role="tablist" aria-label="Spații de lucru"><button type="button" role="tab" aria-selected={group === 'team'} className={group === 'team' ? 'is-active' : ''} onClick={() => changeView({ group: 'team', taskId: undefined })}>Echipă</button><button type="button" role="tab" aria-selected={group === 'tasks'} className={group === 'tasks' ? 'is-active' : ''} onClick={() => changeView({ group: 'tasks', memberId: undefined })}>Sarcini</button></div>
+      {group === 'tasks' && <div className="tw-task-view-tabs" role="tablist" aria-label="Vederi pentru același registru de sarcini">{taskViews.map(({ id, label, icon: Icon }) => <button type="button" role="tab" aria-selected={taskView === id} className={taskView === id ? 'is-active' : ''} key={id} onClick={() => changeView({ taskView: id })}><Icon size={15} />{label}</button>)}</div>}
        <div className="tw-toolbar-actions">{group === 'tasks' && <><label className="tw-search"><Search size={16} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Caută sarcini…" aria-label="Caută sarcini" /></label><TaskFilter statusFilter={statusFilter} setStatusFilter={setStatusFilter} /><button type="button" className="tw-primary-button" onClick={() => onCreate('task')}><Plus size={16} /> Sarcină</button></>}</div>
     </div>
     {group === 'team' ? <div className="tw-team-layout">
-       <div className="tw-team-map-column"><TeamPeopleMap workspace={workspace} selectedMemberId={selectedMemberId} onSelectMember={(id) => { setSelectedMemberId(id); setMemberPanel('profile'); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} /></div>
-      {selectedMember ? <MemberInspector key={selectedMember.id} member={selectedMember} workspace={workspace} panel={memberPanel} setPanel={setMemberPanel} onSelectTask={(id) => { setSelectedTaskId(id); if (id) { setGroup('tasks'); setTaskView('list'); } }} onOpenSource={onOpenSource} onSave={onSave} inspectorRef={inspectorRef} /> : <aside className="tw-inspector tw-inspector-empty"><CircleHelp size={22} /><strong>Nu există membri înregistrați.</strong><p>Adaugă o persoană pentru a construi harta echipei.</p><button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={15} /> Adaugă membru</button></aside>}
+       <div className="tw-team-map-column"><TeamPeopleMap workspace={workspace} selectedMemberId={selectedMemberId} onSelectMember={(id) => { changeView({ group: 'team', memberId: id, taskId: undefined }); setMemberPanel('profile'); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} onSelectRelation={(id) => { changeView({ group: 'team', memberId: id, taskId: undefined }); setMemberPanel('relations'); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} /></div>
+      {selectedMember ? <MemberInspector key={selectedMember.id} member={selectedMember} workspace={workspace} panel={memberPanel} setPanel={setMemberPanel} onSelectTask={(id) => { changeView({ group: id ? 'tasks' : 'tasks', taskView: 'list', memberId: undefined, taskId: id || undefined }); }} onOpenSource={onOpenSource} onSave={onSave} inspectorRef={inspectorRef} /> : <aside className="tw-inspector tw-inspector-empty"><CircleHelp size={22} /><strong>Nu există membri înregistrați.</strong><p>Adaugă o persoană pentru a construi harta echipei.</p><button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={15} /> Adaugă membru</button></aside>}
     </div> : <div className="tw-task-workspace">
       {taskView === 'list' && <TaskListView tasks={filteredTasks} workspace={workspace} selectedTaskId={selectedTaskId} onSelect={setTask} />}
       {taskView === 'gantt' && <GanttView tasks={filteredTasks} workspace={workspace} selectedTaskId={selectedTaskId} onSelect={setTask} simulationOutput={simulationOutput} />}
@@ -647,7 +690,7 @@ export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreat
       {taskView === 'burndown' && <BurndownView tasks={filteredTasks} workspace={workspace} simulationOutput={simulationOutput} onSelect={setTask} onOpenSource={onOpenSource} onOpenDecision={onOpenDecision} />}
       {taskView === 'priorities' && <PriorityView tasks={filteredTasks} workspace={workspace} selectedTaskId={selectedTaskId} onSelect={setTask} onOpenSource={onOpenSource} onOpenDecision={onOpenDecision} />}
       {!filteredTasks.length && <div className="tw-empty-state">Nu există sarcini care corespund căutării și filtrului.</div>}
-      {selectedTask && (taskSet.has(selectedTask.id) || selectedTask.kind === 'deliverable') && <SelectedTaskStrip key={selectedTask.id} task={selectedTask} workspace={workspace} onClose={() => setSelectedTaskId(null)} onOpenSource={onOpenSource} onSave={onSave} onSelectDependency={setTask} onOpenDecision={onOpenDecision} />}
+      {selectedTask && (taskSet.has(selectedTask.id) || selectedTask.kind === 'deliverable') && <SelectedTaskStrip key={selectedTask.id} task={selectedTask} workspace={workspace} onClose={() => changeView({ taskId: undefined })} onOpenSource={onOpenSource} onSave={onSave} onSelectDependency={setTask} onOpenDecision={onOpenDecision} />}
       {simulationOutput && <div className="tw-simulation-context"><Activity size={14} /><span>Simulare salvată disponibilă: {simulationOutput.kind === 'simulation_run' ? `${simulationOutput.iterations.toLocaleString('ro-RO')} iterații, P50 ${simulationOutput.completionDays.p50.toFixed(1)} zile` : `Comparație, diferență P50 ${simulationOutput.completionDeltaDays.p50.toFixed(1)} zile`}.</span></div>}
       {taskView === 'gantt' && <p className="tw-data-note"><Clock3 size={14} />Barele folosesc doar începutul planificat și termenul consemnat. Termenul necunoscut rămâne fără poziție.</p>}
     </div>}

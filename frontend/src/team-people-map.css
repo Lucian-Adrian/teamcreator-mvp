@@ -59,8 +59,8 @@
   position: relative;
   width: 100%;
   min-height: 500px;
-  max-height: 640px;
-  aspect-ratio: 1000 / 640;
+  max-height: 680px;
+  aspect-ratio: 1000 / 720;
   overflow: hidden;
   border: 1px solid #e2e8ef;
   border-radius: 8px;
@@ -78,19 +78,30 @@
 .tpm-flow-approval path { stroke-width: 2; }
 .tpm-flow-unknown path { stroke-dasharray: 2 4; }
 .tpm-edge-label rect { fill: rgba(255,255,255,.97); stroke: #d8e1ec; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tpm-edge-label { pointer-events: all; cursor: pointer; }
+.tpm-edge-label:focus-visible rect { stroke: #1465dc; stroke-width: 2; }
+.tpm-edge-label:focus-visible text { fill: #075fd8; }
 .tpm-flow-handoff .tpm-edge-label rect { stroke: #9bd6bf; }
 .tpm-flow-review .tpm-edge-label rect { stroke: #a7c5ed; }
 .tpm-flow-approval .tpm-edge-label rect { stroke: #c8b1de; }
 .tpm-flow-unknown .tpm-edge-label rect { stroke: #cbd3dc; }
 .tpm-edge-label text { fill: #435a72; font: 700 16px 'DM Sans', sans-serif; text-anchor: middle; dominant-baseline: middle; }
 .tpm-edge-label .tpm-edge-source-count { fill: #8391a1; font-size: 13px; font-weight: 500; }
+.tpm-label-layer { position: absolute; z-index: 4; inset: 0; pointer-events: none; }
+.tpm-edge-control { position: absolute; min-width: 112px; max-width: 145px; display: grid; justify-items: center; gap: 2px; transform: translate(-50%,-50%); padding: 5px 9px; border: 1px solid #cbd5df; border-radius: 16px; background: rgba(255,255,255,.97); color: #435a72; font-size: 12px; font-weight: 700; line-height: 1.2; text-align: center; box-shadow: 0 2px 8px rgba(42,61,80,.12); cursor: pointer; pointer-events: auto; }
+.tpm-edge-control:hover,.tpm-edge-control:focus-visible { z-index: 1; outline: 2px solid rgba(20,101,220,.35); outline-offset: 1px; background: #fff; color: #075fd8; }
+.tpm-edge-control small { color: #8291a0; font-size: 10px; font-weight: 500; }
+.tpm-control-handoff { border-color: #9bd6bf; }
+.tpm-control-review { border-color: #a7c5ed; }
+.tpm-control-approval { border-color: #c8b1de; }
+.tpm-control-unknown { border-color: #cbd3dc; }
 
 .tpm-member {
   position: absolute;
   z-index: 2;
-  width: 23%;
+  width: 20%;
   min-width: 142px;
-  max-width: 220px;
+  max-width: 200px;
   display: grid;
   justify-items: center;
   align-content: start;
@@ -110,8 +121,8 @@
 .tpm-member:focus-visible { outline: 3px solid rgba(22,100,216,.55); outline-offset: 2px; background: rgba(255,255,255,.78); }
 .tpm-member-selected { z-index: 3; }
 .tpm-avatar {
-  width: 88px;
-  height: 88px;
+  width: 78px;
+  height: 78px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -163,6 +174,7 @@
   .tpm-legend { justify-content: flex-start; }
   .tpm-stage { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; min-height: 0; max-height: none; aspect-ratio: auto; overflow: visible; padding: 16px; }
   .tpm-edges { display: none; }
+  .tpm-label-layer { display: none; }
   .tpm-member { position: relative; inset: auto; left: auto !important; top: auto !important; width: auto; min-width: 0; max-width: none; min-height: 170px; align-content: start; padding: 9px 6px; transform: none; border: 1px solid #e5eaf0; border-radius: 8px; background: rgba(255,255,255,.8); }
   .tpm-member:hover { transform: none; border-color: #b7cbea; background: #fff; }
   .tpm-member-selected { grid-column: 1 / -1; border-color: #8ab2ec; background: #f5f9ff; }
@@ -173,7 +185,8 @@
   .tpm-no-flows { position: static; grid-column: 1 / -1; transform: none; max-width: none; }
   .tpm-mobile-relations { display: grid; gap: 7px; }
   .tpm-mobile-relations > p { margin: 0; color: #718196; font-size: 13px; }
-  .tpm-mobile-relation { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 5px 9px; padding: 10px 11px; border-bottom: 1px solid #e5eaf0; background: #fff; }
+.tpm-mobile-relation { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 5px 9px; padding: 10px 11px; border: 0; border-bottom: 1px solid #e5eaf0; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+.tpm-mobile-relation:hover,.tpm-mobile-relation:focus-visible { background: #f5f9ff; outline-color: #8ab2ec; }
   .tpm-mobile-relation > strong { min-width: 0; color: #354d66; font-size: 13px; overflow-wrap: anywhere; }
   .tpm-mobile-relation > strong:last-of-type { text-align: right; }
   .tpm-mobile-relation > span { color: #3e79bd; font-size: 12px; text-align: center; white-space: nowrap; }
