@@ -1,0 +1,30 @@
+{
+  "asset": "team-portraits-v2.png",
+  "generated": "2026-09-27",
+  "generator": "OpenAI built-in image_gen",
+  "synthetic": true,
+  "identity_note": "Fictional demo portraits; they do not depict or identify real people.",
+  "width": 1983,
+  "height": 793,
+  "aspect_ratio": "5:2",
+  "columns": 5,
+  "rows": 2,
+  "cell_order": [
+    [
+      "Elena",
+      "Victor",
+      "Irina",
+      "Mihai",
+      "Sofia"
+    ],
+    [
+      "Andrei",
+      "Dana",
+      "Radu",
+      "Ioana",
+      "Oleg"
+    ]
+  ],
+  "sha256": "33B2D96F1D7C5E4454A41ED7EC59D4487B02C827F9577C9F03E2DD1FCA70F99D",
+  "prompt": "Create one production-ready photorealistic portrait atlas for a fictional project-team demo. The single image canvas must be a strict 5:2 landscape ratio, ideally 2500×1000 pixels. Layout is an exact regular 5-column by 2-row contact sheet of ten equal square 1:1 portrait cells. The atlas spans the full 5:2 canvas with no outer margin; each cell is exactly one fifth of the width and one half of the height. Keep each person's head and shoulders entirely inside their own square cell, with a centered face at the same scale and eye-line across all ten cells.\n\nAll ten portraits use the same natural studio photography setup: realistic adult faces with authentic skin texture, soft even diffuse light, neutral professional business-casual clothing, and a seamless solid pale cool-gray background. Natural, calm expressions, direct or very slightly off-camera gaze. Distinct synthetic fictional people only; do not resemble any known person.\n\nExact order, left to right:\nRow 1: Elena, woman around 35 with dark curly hair; Victor, man around 38 with short dark hair; Irina, woman around 40 with medium brown hair; Mihai, man around 42 with dark hair and understated glasses; Sofia, woman around 29 with light brown hair.\nRow 2: Andrei, man around 36 with short brown hair; Dana, woman around 45 with shoulder-length dark-blond hair; Radu, man around 32 with brown hair, subtle beard, and glasses; Ioana, woman around 28 with dark straight hair; Oleg, man around 48 with salt-and-pepper hair.\n\nStrict constraints: exactly ten portraits, one adult per cell, no duplicates, preserve this exact row and column order, equal square cells and consistent head size, no cell overlap, no seams or dividers, no borders or grid lines, no text, labels, logos, props, accessories beyond Mihai and Radu's glasses. Keep only the pale gray studio background in every cell. The image is an atlas to be displayed as a ten-person team photo sprite, not a poster or collage with decorative spacing."
+}
