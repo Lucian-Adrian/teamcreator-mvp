@@ -28,6 +28,8 @@ npm run preview:live
 
 Open http://127.0.0.1:5187. Projects are stored in this browser using IndexedDB, with a bounded fallback where needed. Snapshot export/import transfers reviewed project state and excerpts; it is not a backup of original files.
 
+The presentation opens directly in Context with 10 synthetic people, 20 tasks and 10 cited sources. Two proposals are ready for review. Browser Back restores the project page, task view and selection. Existing projects remain available in the project picker.
+
 Browser parsing supports text, Markdown, CSV, TSV, XLS, and XLSX. PDF and DOCX require the local runtime. Source extraction produces proposals that a manager must review before they update the project.
 
 ## Capabilities and limits
@@ -37,7 +39,7 @@ Browser parsing supports text, Markdown, CSV, TSV, XLS, and XLSX. PDF and DOCX r
 - Collaboration: explicitly supplied preferences, soft skills and assessment summaries with source attribution. No personality inference from photographs or CVs.
 - Monte Carlo: 10,000 runs by default, seeded durations, dependencies, capacity, common risks and a configurable work calendar. The branch map exposes actual sampled runs; completion families divide the full sample by finish order. The burndown forecast uses all iterations. Results describe the entered assumptions.
 - Decisions and reports: source-linked actions, paired intervention comparisons, editable unsent messages, and separate client and sponsor reports. Reports can be prepared before a simulation exists. Markdown downloads directly; PDF uses the browser print dialog.
-- Integrations: visible configuration requirements. Jira, Trello, mail and external assistant cards do not imply an active connector.
+- Integrations: branded Jira, Trello, Asana, SharePoint, Gmail, Outlook, Claude, ChatGPT and Codex configuration dialogs, directly in Context. The presentation includes clearly marked demo settings. Saving settings does not authenticate an account or start synchronization.
 
 ## AI and agent access
 

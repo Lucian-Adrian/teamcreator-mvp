@@ -23,7 +23,31 @@ Lucian directed the product, reviewed the interface, approved the v7 visual dire
 | 27 September 2026, simulation interface review | Lucian rejected dark simulation concepts. An earlier white plot also placed the chart too low and did not show a common starting point. | A white diagram with a shared origin, actual sampled runs, task selection, completion-group filters, zoom, pan and a side inspector: [c4d2a1a](https://github.com/Lucian-Adrian/teamcreator-mvp/commit/c4d2a1a). |
 | 27 September 2026, report review | The client report footer fell below the desktop preview, and renamed sources could leave stale draft labels. | Tighter desktop spacing and source-name-sensitive draft updates: [297a305](https://github.com/Lucian-Adrian/teamcreator-mvp/commit/297a305). |
 
-## Recovered synthetic snapshots
+## Presentation revision after live testing
+
+Lucian tested the MVP and requested working Back navigation, a prepared project at startup, integrations inside Context, a clearer task list, repaired team-map interaction and a simpler simulation. These changes are preserved in seven additional implementation commits:
+
+- `1b6c13a`: expanded cited presentation fixture and explicitly unconfirmed simulation assumptions.
+- `46a3222`: idempotent presentation startup and correct reference cloning.
+- `3b718d3`: working relationship clicks, unclipped people map and grouped task list.
+- `d8d1433`: direct project entry, URL navigation state, browser Back and removal of the Agent badge.
+- `f543caf`: inline branded integration dialogs and extraction-review status.
+- `331bd40`: asymmetric branches, click-open inspector and simulation controls below the map.
+- `7823e5c`: release identifier `2026-09-27-presentation-ux`.
+
+The versioned synthetic case includes 10 people, 20 tasks, 10 sources, recorded completion history and two pending proposals with field-supporting quotations. A 10,000-run baseline is prepared automatically. Clicking a branch opens its own details; there is no scenario checklist. Branch geometry follows actual task-finish differences within empirical completion groups, with no numeric vertical time axis.
+
+Focused verification: 13 tests passed across the browser runtime, presentation fixture and Worker boundary. Production builds in both checkouts produced matching JS/CSS filenames. Desktop and mobile browser checks covered Back, member and relationship selection, task/source navigation, Jira configuration persistence, modal close/Escape, nine loaded vendor logos and branch selection. Agents compared the desktop views against the approved visual direction. Configuration dialogs remain local setup; external accounts and public AI are not connected by this release.
+
+![Context with extraction status and inline integrations](docs/context-presentation.jpg)
+
+![Ten-person synthetic project map](docs/team-presentation.jpg)
+
+![Grouped task list with dates and owners](docs/tasks-presentation.jpg)
+
+![Simplified simulation with asymmetric branches](docs/simulation-presentation.jpg)
+
+## Earlier synthetic snapshots
 
 These are application captures recovered from the 27 September local verification session. People, documents, dates and portraits belong to the synthetic demo. Screenshots are evidence of the rendered views at that point; they do not establish customer use or successful external integrations.
 
