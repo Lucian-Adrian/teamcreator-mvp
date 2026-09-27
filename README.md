@@ -35,7 +35,7 @@ Browser parsing supports text, Markdown, CSV, TSV, XLS, and XLSX. PDF and DOCX r
 ## Capabilities and limits
 
 - Context: source coverage, quote references, item-level correction, rejection and acceptance, audit history.
-- Team and tasks: people map, task list, Gantt, Kanban, burndown and explained priorities.
+- Team and tasks: a connected graph canvas with draggable people, pan, zoom and saved layout; compact member profiles; task list, Gantt, Kanban, burndown and explained priorities. All ten synthetic people have generated portraits. Real project members retain their own photo or initials.
 - Collaboration: explicitly supplied preferences, soft skills and assessment summaries with source attribution. No personality inference from photographs or CVs.
 - Monte Carlo: 10,000 runs by default, seeded durations, dependencies, capacity, common risks and a configurable work calendar. The branch map exposes actual sampled runs; completion families divide the full sample by finish order. The burndown forecast uses all iterations. Results describe the entered assumptions.
 - Decisions and reports: source-linked actions, paired intervention comparisons, editable unsent messages, and separate client and sponsor reports. Reports can be prepared before a simulation exists. Markdown downloads directly; PDF uses the browser print dialog.

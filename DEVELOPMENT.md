@@ -10,6 +10,20 @@ Lucian directed the product, reviewed the interface, approved the v7 visual dire
 
 ## Milestones
 
+### Connected team canvas after the second review
+
+Lucian rejected the large profiles and detached arrows in the people map, requested generated portraits for every person, and then explicitly asked to replace the implementation with a canvas of connected people.
+
+- `9ed001a`: ten generated synthetic portraits, a shared avatar renderer and a check that real people/custom photos are not replaced. The [portrait manifest](public/brand/team-portraits-v2-manifest.json) records the ImageGen prompt and cell order.
+- `1172b8b`: replaced the hand-positioned SVG map with a React Flow canvas. People can be dragged, connections follow their handles, and pan/zoom/fit/reset are available. Layout and viewport are saved per browser project. Node handles are remeasured on mount to fix missing edges after reload in the embedded browser.
+- `3776794`: compact profile summaries, separate field and general evidence, task-only counts, persisted profile tabs and a mobile return-to-map action. At narrow widths the map appears before the profile.
+
+The source builds in both checkouts produce matching assets. Fourteen focused tests pass, including synthetic-only portrait assignment. Browser verification covers selection without reshuffling people, dragging with moving edge endpoints, pan/zoom/reset, relationship navigation and reload. The earlier fixed geometry implementation and its large cards are superseded.
+
+![Connected people canvas and compact profile](docs/team-canvas.jpg)
+
+### Earlier milestones
+
 | Date of source record | Problem or decision | Delivered change and evidence |
 |---|---|---|
 | 26 September 2026 | A project manager needed to trace people, tasks and decisions back to documents. | Local source ingestion, reviewable proposals, dependencies and a synthetic streetlight project. Recovered from the local changelog dated 26 September; the resulting source is in the initial public commit. |
