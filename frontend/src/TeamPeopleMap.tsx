@@ -1,5 +1,8 @@
-import React, { useId, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Background, BackgroundVariant, Controls, Handle, MarkerType, Panel, Position, ReactFlow, useNodesState, useUpdateNodeInternals, type Edge, type Node, type NodeProps, type ReactFlowInstance, type Viewport } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import type { ProjectRecord, ProjectWorkspace, SourceRef } from '../../shared/types';
+import { getMemberAvatar } from './member-avatar';
 import './team-people-map.css';
 
 type Props = {
@@ -10,7 +13,6 @@ type Props = {
 };
 
 type FlowKind = 'handoff' | 'review' | 'approval' | 'unknown';
-type Point = { x: number; y: number };
 type MemberFlow = {
   key: string;
   fromId: string;
@@ -27,6 +29,32 @@ const flowLabels: Record<FlowKind, string> = {
   unknown: 'Dependență',
 };
 
+type PersonNode = Node<{ member: ProjectRecord; synthetic: boolean; taskCount: number }, 'person'>;
+function PersonCanvasNode({ id, data }: NodeProps<PersonNode>) {
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => updateNodeInternals(id));
+    return () => cancelAnimationFrame(frame);
+  }, [id, updateNodeInternals]);
+  const avatar = getMemberAvatar(data.member, data.synthetic);
+  return <div className="tpm-person">
+    <div className="tpm-portrait-anchor"><span className={`tpm-avatar${avatar ? ' tpm-avatar-image' : ''}`} aria-hidden="true" style={avatar?.style}>{avatar ? null : data.member.title.split(/\s+/).map(part => part[0]).slice(0, 2).join('')}</span>
+      {(['left', 'right'] as const).flatMap(side => (['source', 'target'] as const).map(type => <Handle key={`${type}-${side}`} type={type} id={`${type}-${side}`} position={side === 'left' ? Position.Left : Position.Right} isConnectable={false} />))}
+    </div>
+    <strong>{data.member.title}</strong><small title={data.member.role || ''}>{data.member.role || 'Rol neînregistrat'}</small><em>{data.taskCount ? `${data.taskCount} ${data.taskCount === 1 ? 'sarcină' : 'sarcini'}` : 'Fără sarcini'}</em>
+  </div>;
+}
+const nodeTypes = { person: PersonCanvasNode };
+const seedPositions = [{ x: 430, y: 40 }, { x: 225, y: 195 }, { x: 465, y: 265 }, { x: 730, y: 55 }, { x: 120, y: 45 }, { x: 735, y: 430 }, { x: 125, y: 445 }, { x: 440, y: 470 }, { x: 20, y: 270 }, { x: 890, y: 270 }];
+const seedPosition = (index: number) => seedPositions[index] || { x: (index % 4) * 250, y: 640 + Math.floor((index - 10) / 4) * 150 };
+type CanvasState = { positions?: Record<string, { x: number; y: number }>; viewport?: Viewport };
+function readCanvas(projectId: string): CanvasState {
+  try { return JSON.parse(localStorage.getItem(`tc-team-canvas-v1:${projectId}`) || '{}'); } catch { return {}; }
+}
+function writeCanvas(projectId: string, patch: CanvasState) {
+  try { localStorage.setItem(`tc-team-canvas-v1:${projectId}`, JSON.stringify({ ...readCanvas(projectId), ...patch })); } catch { /* Layout can remain session-only when browser storage is full. */ }
+}
+
 function normalized(value: unknown) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase();
 }
@@ -39,56 +67,15 @@ function flowKind(prerequisite: ProjectRecord, dependent: ProjectRecord): FlowKi
   return 'unknown';
 }
 
-function memberPositions(memberIds: string[], focusId: string | null) {
-  const focusIndex = Math.max(0, memberIds.findIndex((id) => id === focusId));
-  const ordered = [...memberIds.slice(focusIndex), ...memberIds.slice(0, focusIndex)];
-  const positions = new Map<string, Point>();
-  if (!ordered.length) return positions;
-  positions.set(ordered[0], { x: 50, y: 50 });
-  const ring = ordered.slice(1);
-  ring.forEach((id, index) => {
-    const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(1, ring.length);
-    positions.set(id, {
-      x: 50 + Math.cos(angle) * (memberIds.length > 8 ? 40 : 35),
-      y: 50 + Math.sin(angle) * 31,
-    });
-  });
-  return positions;
-}
-
-function clippedSegment(from: Point, to: Point) {
-  const ax = from.x * 10;
-  const ay = from.y * 7.2;
-  const bx = to.x * 10;
-  const by = to.y * 7.2;
-  const dx = bx - ax;
-  const dy = by - ay;
-  const length = Math.max(1, Math.hypot(dx, dy));
-  const ux = dx / length;
-  const uy = dy / length;
-  const clip = (vx: number, vy: number) => 1 / Math.max(Math.abs(vx) / 112, Math.abs(vy) / 112);
-  const startDistance = clip(ux, uy);
-  const endDistance = clip(-ux, -uy);
-  return {
-    start: { x: ax + ux * startDistance, y: ay + uy * startDistance },
-    end: { x: bx - ux * endDistance, y: by - uy * endDistance },
-  };
-}
-
-function avatarPosition(member: ProjectRecord) {
-  let crop = member.avatar_crop || 'top-left';
-  if (member.avatar_is_illustrative && crop === 'bottom-left') crop = 'bottom-right';
-  else if (member.avatar_is_illustrative && crop === 'bottom-right') crop = 'bottom-left';
-  return ({
-    'top-left': '0% 0%',
-    'top-right': '100% 0%',
-    'bottom-left': '0% 100%',
-    'bottom-right': '100% 100%',
-  } as const)[crop];
-}
-
 export default function TeamPeopleMap({ workspace, selectedMemberId, onSelectMember, onSelectRelation }: Props) {
-  const markerPrefix = useId().replace(/:/g, '');
+  const [nodes, setNodes, onNodesChange] = useNodesState<PersonNode>([]);
+  const flowInstance = useRef<ReactFlowInstance<PersonNode, Edge> | null>(null);
+  const lastProject = useRef(workspace.project.id);
+  const [showAll, setShowAll] = useState(true);
+  const initialViewport = useMemo(() => {
+    const saved = readCanvas(workspace.project.id).viewport;
+    return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) && saved.zoom >= .2 && saved.zoom <= 2 ? saved : undefined;
+  }, [workspace.project.id]);
   const members = workspace.members.filter((member) => member.title?.trim());
   const memberById = new Map(members.map((member) => [member.id, member]));
   const aliases = new Map<string, string>();
@@ -162,104 +149,58 @@ export default function TeamPeopleMap({ workspace, selectedMemberId, onSelectMem
     return { flows: result, unresolvedCount: unresolved };
   }, [workspace, records, recordsById, memberFor]);
 
-  const focusId = members.some((member) => member.id === selectedMemberId) ? selectedMemberId : members[0]?.id || null;
-  const positions = memberPositions(members.map((member) => member.id), focusId);
-  const workCount = (memberId: string) => records.filter((record) => memberFor(record) === memberId).length;
-  const edgeColors: Record<FlowKind, string> = { handoff: '#28a879', review: '#3177d2', approval: '#8a60b0', unknown: '#8492a1' };
-  const flowLayouts = flows.map((flow, index) => {
-    const from = positions.get(flow.fromId); const to = positions.get(flow.toId);
-    if (!from || !to) return null;
-    const { start, end } = clippedSegment(from, to);
-    const dx = end.x - start.x; const dy = end.y - start.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-    const unrelatedToFocus = flow.fromId !== focusId && flow.toId !== focusId;
-    const centerDistance = Math.hypot(midpoint.x - 500, midpoint.y - 360);
-    const px = -dy / length; const py = dx / length;
-    const outwardDot = (midpoint.x - 500) * px + (midpoint.y - 360) * py;
-    const sign = Math.abs(outwardDot) < 1 ? (index % 2 === 0 ? 1 : -1) : outwardDot >= 0 ? 1 : -1;
-    const curveOffset = unrelatedToFocus && centerDistance < 205 ? 360 : ((index % 3) - 1) * 28;
-    const cx = midpoint.x - dy / length * curveOffset * sign;
-    const cy = midpoint.y + dx / length * curveOffset * sign;
-    return { flow, start, end, cx, cy };
-  }).filter((item): item is NonNullable<typeof item> => Boolean(item));
-  const focusPoint = positions.get(focusId || '');
-  const badgeGroups = new Map<string, MemberFlow[]>();
-  for (const flow of flows) {
-    if (flow.fromId !== focusId && flow.toId !== focusId) continue;
-    const otherId = flow.fromId === focusId ? flow.toId : flow.fromId;
-    badgeGroups.set(otherId, [...(badgeGroups.get(otherId) || []), flow]);
-  }
-  const relationBadges = [...badgeGroups.entries()].flatMap(([otherId, relatedFlows]) => {
-    const otherPoint = positions.get(otherId);
-    if (!focusPoint || !otherPoint) return [];
-    const kinds = [...new Set(relatedFlows.map((flow) => flow.kind))];
-    const taskTitles = [...new Set(relatedFlows.flatMap((flow) => flow.tasks))];
-    const sourceCount = new Set(relatedFlows.flatMap((flow) => flow.sources.map((ref) => `${ref.source_id}\u0000${ref.location || ''}\u0000${ref.quote || ''}`))).size;
-    const angle = Math.atan2(otherPoint.y - focusPoint.y, otherPoint.x - focusPoint.x);
-    return [{
-      otherId,
-      kind: kinds.length === 1 ? kinds[0] : 'unknown' as FlowKind,
-      label: kinds.length === 1 ? flowLabels[kinds[0]] : 'Relații',
-      taskCount: taskTitles.length,
-      sourceCount,
-      angle,
-      x: (focusPoint.x + otherPoint.x) / 2,
-      y: (focusPoint.y + otherPoint.y) / 2,
-    }];
-  }).sort((a, b) => a.angle - b.angle);
-
-  if (!members.length) return <section className="team-people-map team-people-map-empty"><strong>Nu există persoane înregistrate.</strong><p>Harta va apărea când proiectul are membri și dependențe documentate.</p></section>;
+  const focusId = members.some(member => member.id === selectedMemberId) ? selectedMemberId : members[0]?.id || null;
+  useEffect(() => {
+    const projectChanged = lastProject.current !== workspace.project.id;
+    lastProject.current = workspace.project.id;
+    const saved = readCanvas(workspace.project.id);
+    setNodes(previous => members.map((member, index) => {
+      const existing = projectChanged ? undefined : previous.find(node => node.id === member.id);
+      const position = saved.positions?.[member.id];
+      const savedPosition = position && Number.isFinite(position.x) && Number.isFinite(position.y) && Math.abs(position.x) < 50000 && Math.abs(position.y) < 50000 ? position : undefined;
+      return { ...(existing || {}), id: member.id, type: 'person' as const, position: existing?.position || savedPosition || seedPosition(index), data: { member, synthetic: Boolean(workspace.project.synthetic), taskCount: workspace.tasks.filter(task => memberFor(task) === member.id).length }, ariaLabel: `${member.title}, ${member.role || 'Membru'}`, deletable: false };
+    }));
+  }, [workspace.project.id, workspace.members, workspace.tasks, workspace.assignments]);
+  const displayNodes = nodes.map(node => ({ ...node, selected: node.id === focusId }));
+  const nodePositions = new Map(nodes.map(node => [node.id, node.position]));
+  const edges: Edge[] = flows.filter(flow => showAll || flow.fromId === focusId || flow.toId === focusId).map(flow => {
+    const from = nodePositions.get(flow.fromId) || { x: 0, y: 0 }; const to = nodePositions.get(flow.toId) || { x: 0, y: 0 };
+    const closeColumns = Math.abs(to.x - from.x) < 120;
+    const sourceSide = to.x >= from.x ? 'right' : 'left';
+    const targetSide = closeColumns ? sourceSide : sourceSide === 'right' ? 'left' : 'right';
+    const focused = flow.fromId === focusId || flow.toId === focusId;
+    return { id: `${flow.fromId}-${flow.toId}-${flow.kind}`, source: flow.fromId, target: flow.toId, sourceHandle: `source-${sourceSide}`, targetHandle: `target-${targetSide}`, type: 'default', data: { flow },
+      label: focused ? flowLabels[flow.kind] : undefined, labelStyle: { fill: '#355a88', fontSize: 11, fontWeight: 500 }, labelBgStyle: { fill: '#fff', fillOpacity: .97 }, labelBgPadding: [6, 3], labelBgBorderRadius: 4,
+      style: { stroke: focused ? '#3779db' : '#b7c4d5', strokeWidth: focused ? 1.6 : 1.1, strokeDasharray: flow.kind === 'unknown' ? '4 4' : undefined }, markerEnd: { type: MarkerType.ArrowClosed, color: focused ? '#3779db' : '#b7c4d5', width: 13, height: 13 }, interactionWidth: 18, focusable: true, ariaLabel: `${memberById.get(flow.fromId)?.title} către ${memberById.get(flow.toId)?.title}: ${flowLabels[flow.kind]}`, deletable: false };
+  });
+  const openRelation = (edge: Edge) => {
+    const flow = edge.data?.flow as MemberFlow | undefined;
+    if (flow) onSelectRelation?.(flow.fromId === focusId ? flow.toId : flow.fromId);
+  };
+  const reset = () => {
+    setNodes(current => current.map((node, index) => ({ ...node, position: seedPosition(index) })));
+    writeCanvas(workspace.project.id, { positions: {}, viewport: undefined });
+    requestAnimationFrame(() => void flowInstance.current?.fitView({ padding: .12, maxZoom: 1, duration: 200 }));
+  };
+  if (!members.length) return <section className="team-people-map team-people-map-empty"><strong>Nu există persoane înregistrate.</strong><p>Adaugă membrii pentru a construi harta.</p></section>;
 
   return <section className="team-people-map" aria-label="Harta relațiilor dintre membrii echipei">
-    <div className="tpm-stage" aria-label="Membrii și relațiile lor de lucru">
-      <svg className="tpm-edges" viewBox="0 0 1000 720" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          {Object.entries(edgeColors).map(([kind, color]) => <marker key={kind} id={`${markerPrefix}-${kind}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill={color} /></marker>)}
-        </defs>
-        {flowLayouts.map(({ flow, start, end, cx, cy }) => <g key={flow.key} className={`tpm-flow tpm-flow-${flow.kind}`} opacity={!selectedMemberId || flow.fromId === selectedMemberId || flow.toId === selectedMemberId ? 0.95 : 0.7}>
-          <title>{`${memberById.get(flow.fromId)?.title} către ${memberById.get(flow.toId)?.title}: ${flowLabels[flow.kind].toLocaleLowerCase()}, ${flow.tasks.length} ${flow.tasks.length === 1 ? 'sarcină' : 'sarcini'}${flow.sources.length ? `, ${flow.sources.length} ${flow.sources.length === 1 ? 'citat' : 'citate'}` : ', fără citat de relație'}`}</title>
-          <path d={`M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`} stroke={edgeColors[flow.kind]} markerEnd={`url(#${markerPrefix}-${flow.kind})`} />
-        </g>)}
-      </svg>
-      {members.map((member) => {
-        const position = positions.get(member.id)!;
-        const selected = member.id === selectedMemberId;
-        const isFocus = member.id === focusId;
-        const illustration = member.avatar_is_illustrative;
-        return <button
-          className={`tpm-member${selected ? ' tpm-member-selected' : ''}${isFocus ? ' tpm-member-focus' : ''}`}
-          key={member.id}
-          type="button"
-          style={{ left: `${position.x}%`, top: `${position.y}%` }}
-          aria-pressed={selected}
-          aria-label={`${member.title}, ${member.role || 'rol neînregistrat'}, ${workCount(member.id)} sarcini alocate`}
-          onClick={() => onSelectMember(member.id)}
-        >
-          {member.avatar_asset ? <span className="tpm-avatar tpm-avatar-image" aria-hidden="true" title={illustration ? 'Portret ilustrativ pentru scenariul sintetic' : undefined} style={{ backgroundImage: `url(${member.avatar_asset})`, backgroundPosition: avatarPosition(member) }} /> : <span className="tpm-avatar" aria-hidden="true">{member.title.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toLocaleUpperCase()}</span>}
-          <span className="tpm-member-copy"><strong>{member.title}</strong><small>{member.role || 'Rol neînregistrat'}</small><em>{workCount(member.id)} {workCount(member.id) === 1 ? 'sarcină alocată' : 'sarcini alocate'}</em></span>
-          {illustration && <span className="tpm-illustrative-mark" aria-label="Portret ilustrativ">ilustrativ</span>}
-        </button>;
-      })}
-      {onSelectRelation && <div className="tpm-label-layer" aria-label="Relații selectabile">
-        {relationBadges.map((badge) => {
-          const countLabel = badge.taskCount === 1 ? '1 sarcină' : `${badge.taskCount} sarcini`;
-          return <button key={badge.otherId} type="button" className={`tpm-edge-control tpm-control-${badge.kind}`} style={{ left: `${badge.x}%`, top: `${badge.y}%` }} aria-label={`${badge.label}, ${countLabel}. Deschide relația cu ${memberById.get(badge.otherId)?.title || 'celălalt responsabil'}`} onClick={() => onSelectRelation(badge.otherId)}>
-            <span>{badge.label} · {countLabel}</span>{badge.sourceCount > 0 && <small>{badge.sourceCount} {badge.sourceCount === 1 ? 'sursă' : 'surse'}</small>}
-          </button>;
-        })}
-      </div>}
-      {!flows.length && <div className="tpm-no-flows">Nu există încă legături documentate între responsabili diferiți.</div>}
+    <div className="tpm-toolbar"><span>{members.length} persoane <i /> {flows.length} legături de lucru</span><button type="button" aria-pressed={!showAll} onClick={() => setShowAll(value => !value)}>{showAll ? 'Relațiile persoanei' : 'Toate relațiile'}</button></div>
+    <div className="tpm-canvas" aria-label="Canvas cu oameni conectați">
+      <ReactFlow<PersonNode, Edge> key={workspace.project.id} nodes={displayNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={changes => { onNodesChange(changes); const selection = changes.find(change => change.type === 'select' && change.selected); if (selection?.type === 'select' && selection.id !== focusId) onSelectMember(selection.id); }}
+        onNodeClick={(_, node) => onSelectMember(node.id)} onEdgeClick={(_, edge) => openRelation(edge)}
+        onEdgesChange={changes => { const selection = changes.find(change => change.type === 'select' && change.selected); if (selection?.type === 'select') { const edge = edges.find(item => item.id === selection.id); if (edge) openRelation(edge); } }}
+        onNodeDragStop={(_, __, draggedNodes) => { const current = flowInstance.current?.getNodes() || draggedNodes; writeCanvas(workspace.project.id, { positions: Object.fromEntries(current.map(node => [node.id, node.position])) }); }}
+        onMoveEnd={(_, viewport) => writeCanvas(workspace.project.id, { viewport })}
+        onInit={instance => { flowInstance.current = instance; }}
+        fitView={!initialViewport} defaultViewport={initialViewport} fitViewOptions={{ padding: .12, maxZoom: 1 }} minZoom={.2} maxZoom={2} nodesConnectable={false} edgesReconnectable={false} deleteKeyCode={null} nodeDragThreshold={4} panOnDrag zoomOnScroll zoomOnPinch zoomOnDoubleClick={false} preventScrolling={false} attributionPosition="bottom-right">
+        <Background variant={BackgroundVariant.Lines} gap={28} size={.5} color="#e6ecf3" />
+        <Controls showInteractive={false} fitViewOptions={{ padding: .12, maxZoom: 1 }} aria-label="Zoom și încadrare" />
+        <Panel position="top-right"><button type="button" className="tpm-reset" onClick={reset}>Reașază</button></Panel>
+        <Panel position="bottom-center"><span className="tpm-canvas-hint">Mută oamenii · trage fundalul · zoom</span></Panel>
+      </ReactFlow>
     </div>
-    <div className="tpm-mobile-relations" aria-label="Relații agregate">
-      {flows.length ? flows.map((flow) => <button type="button" aria-label={`Deschide relația ${memberById.get(flow.fromId)?.title} către ${memberById.get(flow.toId)?.title}: ${flowLabels[flow.kind]}, ${flow.tasks.length} sarcini`} onClick={() => onSelectRelation?.(flow.fromId === focusId ? flow.toId : flow.fromId)} key={flow.key} className={`tpm-mobile-relation tpm-mobile-${flow.kind}`}>
-        <strong>{memberById.get(flow.fromId)?.title}</strong><span>{flowLabels[flow.kind]} · {flow.tasks.length}</span><strong>{memberById.get(flow.toId)?.title}</strong>
-        <small>{flow.tasks.join(' · ')}{flow.sources.length ? ` · ${flow.sources.length} surse legate` : ''}</small>
-      </button>) : <p>Nu există încă legături documentate între responsabili diferiți.</p>}
-    </div>
-    <footer className="tpm-foot">
-      <div className="tpm-legend" aria-label="Tipuri de relații"><span><i className="tpm-legend-handoff" />Predare</span><span><i className="tpm-legend-review" />Revizuire</span><span><i className="tpm-legend-approval" />Aprobare</span><span><i className="tpm-legend-unknown" />Dependență fără tip clar</span></div>
-      <p className="tpm-note">{unresolvedCount ? `${unresolvedCount} dependențe fără doi responsabili identificați rămân neconectate. ` : ''}Legăturile derivă din dependențe și responsabili înregistrați. Citatele se deschid în profilul sau sarcina implicată.</p>
-    </footer>
+    <label className="tpm-mobile-picker">Persoană<select value={focusId || ''} onChange={event => onSelectMember(event.target.value)}>{members.map(member => <option key={member.id} value={member.id}>{member.title}</option>)}</select></label>
+    <footer className="tpm-foot"><span>Selectează o persoană sau o legătură.</span><span>{unresolvedCount ? `${unresolvedCount} dependențe cu responsabil de clarificat. ` : ''}{workspace.project.synthetic ? 'Proiect demonstrativ · portrete generate' : 'Legături din sarcinile proiectului'}</span></footer>
   </section>;
 }
