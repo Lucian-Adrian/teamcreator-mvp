@@ -1,0 +1,40 @@
+{
+  "created_at": "2026-09-27",
+  "purpose": "Display derivatives; original artwork is retained unchanged.",
+  "portrait_provenance": "team-portraits-v2-manifest.json",
+  "derivatives": [
+    {
+      "source": "public/brand/teamcreator-official-black-on-white.png",
+      "source_dimensions": "2170x725",
+      "source_bytes": 656027,
+      "source_sha256": "9E4C8BF8DF7B81FB7307FD9AEA62AF50594495EA60A48E0467AFDDB1D8DDD837",
+      "output": "public/brand/teamcreator-mark-2x.webp",
+      "output_dimensions": "434x145",
+      "output_bytes": 18372,
+      "output_sha256": "21D23DF368FA0BD7B39DD374EC6FDE5BE7331767A874F2C5136C9449B61AA2CB",
+      "encoding": "lossless WebP; Lanczos resize to 434x145"
+    },
+    {
+      "source": "public/brand/team-portraits-v2.png",
+      "source_dimensions": "1983x793",
+      "source_bytes": 2194834,
+      "source_sha256": "33B2D96F1D7C5E4454A41ED7EC59D4487B02C827F9577C9F03E2DD1FCA70F99D",
+      "output": "public/brand/team-portraits-v2-optimized.webp",
+      "output_dimensions": "1250x500",
+      "output_bytes": 72890,
+      "output_sha256": "40EF4538C2959CF7C4DE861C3687F9D005F2B10CFA54C8391C3FF99EB38DCED1",
+      "encoding": "WebP q86, compression level 6, photo preset; Lanczos resize"
+    },
+    {
+      "source": "public/brand/streetlight-team.png",
+      "source_dimensions": "1254x1254",
+      "source_bytes": 1989869,
+      "source_sha256": "657722E895D256A8BEBAC10FEC15FA7976E0CAD104F5DC1483AF23DD1F564F07",
+      "output": "public/brand/streetlight-team-optimized.webp",
+      "output_dimensions": "1000x1000",
+      "output_bytes": 86258,
+      "output_sha256": "B5085221A373AD54A2D1663C9FC4A784D659E16359165CF8FEF60DBE7F9E8C62",
+      "encoding": "WebP q86, compression level 6, photo preset; Lanczos resize"
+    }
+  ]
+}

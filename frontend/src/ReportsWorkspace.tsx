@@ -86,7 +86,7 @@ export default function ReportsWorkspace({ workspace, output = null, onRunSimula
     </div>
     {exportMessage && <p className="rp-export-message" role="status">{exportMessage}</p>}
     <div className="rp-canvas"><article className={`rp-paper rp-paper-${audience}`}>
-      <header className="rp-document-heading"><div><img src="/brand/teamcreator-official-black-on-white.png" alt="TeamCreator" /><span>{workspace.project.name}</span></div><span>{audience === 'client' ? 'Raport de progres' : 'Notă de decizie'}<small>{dateLabel(workspace.project.updated_at)}</small></span></header>
+      <header className="rp-document-heading"><div><img src="/brand/teamcreator-mark-2x.webp" alt="TeamCreator" width={151} height={46} /><span>{workspace.project.name}</span></div><span>{audience === 'client' ? 'Raport de progres' : 'Notă de decizie'}<small>{dateLabel(workspace.project.updated_at)}</small></span></header>
       {audience === 'sponsor' && <div className="rp-decision-callout"><AlertCircle size={23} /><span>{scenario ? 'Verifică ipotezele și compară opțiunile înaintea deciziei.' : 'Simularea nu a fost rulată. Informațiile lipsă rămân de confirmat.'}</span>{!scenario && onRunSimulation && <button type="button" onClick={onRunSimulation}>Deschide simularea <ArrowRight size={15} /></button>}</div>}
       <div className="rp-document-grid">
         {(audience === 'client' ? clientSections : sponsorSections).map((section, index) => <section className={`rp-document-section rp-section-${index % 4}`} key={section.title}>

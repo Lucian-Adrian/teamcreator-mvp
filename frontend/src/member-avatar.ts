@@ -9,7 +9,7 @@ export function getMemberAvatar(member: ProjectRecord | null | undefined, synthe
   if (!member) return null;
   const index = synthetic ? demoPortraits.indexOf(member.title) : -1;
   if (index >= 0 && (!member.avatar_asset || member.avatar_is_illustrative)) return {
-    style: { backgroundImage: 'url(/brand/team-portraits-v2.png)', backgroundSize: '500% 200%', backgroundPosition: `${(index % 5) * 25}% ${index < 5 ? 0 : 100}%` },
+    style: { backgroundImage: 'url(/brand/team-portraits-v2-optimized.webp)', backgroundSize: '500% 200%', backgroundPosition: `${(index % 5) * 25}% ${index < 5 ? 0 : 100}%` },
     illustrative: true,
   };
   if (!member.avatar_asset) return null;

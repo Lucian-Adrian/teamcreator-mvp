@@ -1,11 +1,9 @@
 import AppHeader from './AppHeader';
-import TeamWorkspace, { type TeamViewState } from './TeamWorkspace';
+import type { TeamViewState } from './TeamWorkspace';
 import { readNavigation, navigationHash, type ProjectNavigation } from './navigation';
 import { isPresentationDemo } from '../../shared/presentation-demo';
 import ContextWorkspace from './ContextWorkspace';
-import DecisionsWorkspace from './DecisionsWorkspace';
-import { buildProjectReport } from './project-report';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertCircle, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Check,
   CheckCheck, ChevronDown, ChevronRight, CircleHelp, Clock3, File as FileIcon, FileArchive, FileCheck2,
@@ -16,8 +14,25 @@ import {
 import type { MemberType, ProjectChange, ProjectProposal, ProjectRecord, ProjectSource, ProjectSummary, ProjectWorkspace, SourceRef } from '../../shared/types';
 import { approvalIsOnlyForBaseline } from '../../shared/proposal-safety.js';
 import { streetlightSourcePack } from '../../shared/demo-source-pack.js';
-import Simulation from './Simulation';
 import type { SimulationIntervention, SimulationOutput, SimulationResult } from '../../shared/simulation';
+
+const TeamWorkspace = lazy(() => import('./TeamWorkspace'));
+const DecisionsWorkspace = lazy(() => import('./DecisionsWorkspace'));
+const Simulation = lazy(() => import('./Simulation'));
+
+class LazyRouteBoundary extends React.Component<{ children: React.ReactNode }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() { return { failed: true }; }
+
+  render() {
+    if (this.state.failed) return <div className="content-loading" role="alert">
+      <span>Pagina nu s-a încărcat.</span>
+      <button type="button" className="quiet-button" onClick={() => window.location.reload()}>Reîncarcă</button>
+    </div>;
+    return this.props.children;
+  }
+}
 
 type Page = 'context' | 'map' | 'simulation' | 'diagnostic';
 type WorkspaceRecord = ProjectRecord;
@@ -185,23 +200,13 @@ function toPublicSnapshot(value: any) {
   throw new Error('Fișierul nu este un snapshot TeamCreator compatibil.');
 }
 
-function downloadDiagnosticReport(output: SimulationOutput, workspace: Workspace, audience: 'client' | 'sponsor') {
-  const blob = new Blob([buildProjectReport(output, workspace, audience)], { type: 'text/markdown;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `${workspace.project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-|-$/g, '')}-raport-${audience}.md`;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 function App() {
   const [initialNavigation] = useState(readNavigation);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState('');
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [page, setPage] = useState<Page>(initialNavigation.page);
+  const [simulationVisited, setSimulationVisited] = useState(initialNavigation.page === 'simulation');
   const [contextPanel, setContextPanel] = useState<'sources' | 'review' | 'history'>(initialNavigation.contextPanel);
   const [teamView, setTeamView] = useState<TeamViewState>(initialNavigation.team);
   const [decisionTab, setDecisionTab] = useState<ProjectNavigation['decisionTab']>(initialNavigation.decisionTab);
@@ -249,6 +254,8 @@ function App() {
     selectedNode, sourceId: focusedSourceId, sourceRef: focusedSourceRef, decisionId: focusedDecisionId,
     overlay, manualOpen, manualKind };
   const navigationSignature = JSON.stringify(navigation);
+
+  useEffect(() => { if (page === 'simulation') setSimulationVisited(true); }, [page]);
 
   useEffect(() => {
     const restore = (event: PopStateEvent) => {
@@ -759,16 +766,16 @@ function App() {
               reviewContent={<UpdatesPage workspace={workspace} text={checkinText} setText={setCheckinText} sourceName={checkinSource} setSourceName={setCheckinSource} onSubmit={sendCheckin} onContinueModelReview={continueCheckinReview} coverageMessage={checkinCoverageMessage} continuationPending={checkinContinuationIds.length > 0} retrying={retryingSources} busy={busy} jobPhase={jobPhase} proposals={pendingProposals} onDecide={decideProposal} onReviewItem={reviewProposalItem} onOpenSource={(ref) => openSource(ref.source_id, ref)} proposalBusyId={proposalBusyId} sent={checkinSent} />}
               historyContent={<HistoryPage workspace={workspace} />}
             />}
-            {page === 'map' && <TeamWorkspace workspace={workspace} focusedRecord={selectedNode} viewState={teamView} onViewStateChange={(next) => { setTeamView(next); setSelectedNode(null); }} onOpenSource={(ref) => openSource(ref.source_id, ref)}
+            {page === 'map' && <LazyRouteBoundary key={workspace.project.id}><Suspense fallback={<div className="content-loading"><LoaderCircle className="spin" size={20} /> Deschid echipa…</div>}><TeamWorkspace workspace={workspace} focusedRecord={selectedNode} viewState={teamView} onViewStateChange={(next) => { setTeamView(next); setSelectedNode(null); }} onOpenSource={(ref) => openSource(ref.source_id, ref)}
               onSave={updateRecord} onCreate={(kind = 'task') => { setManualKind(kind); setManualOpen(true); }} simulationOutput={simulationOutput}
-              onOpenDecision={(id) => { setFocusedDecisionId(id); setPage('diagnostic'); }} />}
-            <div className="simulation-host" hidden={page !== 'simulation'}><Simulation workspace={workspace} onResult={setSimulationOutput} initialIntervention={diagnosticIntervention} autoRunKey={simulationRunRequest} /></div>
-            {page === 'diagnostic' && <DecisionsWorkspace workspace={workspace} simulationOutput={simulationOutput} focusedRecordId={focusedDecisionId} activeTab={decisionTab} onTabChange={setDecisionTab}
+              onOpenDecision={(id) => { setFocusedDecisionId(id); setPage('diagnostic'); }} /></Suspense></LazyRouteBoundary>}
+            <div className="simulation-host" hidden={page !== 'simulation'}>{(simulationVisited || page === 'simulation') && <LazyRouteBoundary key={workspace.project.id}><Suspense fallback={<div className="content-loading"><LoaderCircle className="spin" size={20} /> Deschid simularea…</div>}><Simulation workspace={workspace} onResult={setSimulationOutput} initialIntervention={diagnosticIntervention} autoRunKey={simulationRunRequest} /></Suspense></LazyRouteBoundary>}</div>
+            {page === 'diagnostic' && <LazyRouteBoundary key={workspace.project.id}><Suspense fallback={<div className="content-loading"><LoaderCircle className="spin" size={20} /> Deschid deciziile…</div>}><DecisionsWorkspace workspace={workspace} simulationOutput={simulationOutput} focusedRecordId={focusedDecisionId} activeTab={decisionTab} onTabChange={setDecisionTab}
               onRunSimulation={() => setPage('simulation')}
               onReviewProposalItem={(proposalId, itemId, body) => performReview(proposalId, `items/${encodeURIComponent(itemId)}/review`, body)}
               onApplyProposalItems={(proposalId, itemIds) => performReview(proposalId, 'apply', { itemIds })}
               onSaveRecord={updateRecord} onRunScenario={(intervention) => { setDiagnosticIntervention(intervention); setSimulationRunRequest(value => value + 1); setPage('simulation'); }}
-              onOpenSource={(ref) => openSource(ref.source_id, ref)} onOpenRecord={(kind, id) => { if (kind === 'member' || kind === 'task' || kind === 'deliverable') openRecord(kind, id); else setFocusedDecisionId(id); }} />}
+              onOpenSource={(ref) => openSource(ref.source_id, ref)} onOpenRecord={(kind, id) => { if (kind === 'member' || kind === 'task' || kind === 'deliverable') openRecord(kind, id); else setFocusedDecisionId(id); }} /></Suspense></LazyRouteBoundary>}
 
           </>
         ) : null}
@@ -985,7 +992,7 @@ function proposalPreviewMember(workspace: Workspace, item: ProjectProposal['item
     evidence_state: 'supported', review_state: 'unreviewed', created_at: workspace.project.created_at, updated_at: workspace.project.updated_at,
     role: typeof item.fields.role === 'string' ? item.fields.role : null,
     member_type: item.fields.member_type || 'unknown',
-    ...(illustrative ? { avatar_asset: '/brand/streetlight-team.png', avatar_crop: crops[index % crops.length], avatar_is_illustrative: true } : {}),
+    ...(illustrative ? { avatar_asset: '/brand/streetlight-team-optimized.webp', avatar_crop: crops[index % crops.length], avatar_is_illustrative: true } : {}),
   };
 }
 

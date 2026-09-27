@@ -35,7 +35,7 @@ const stages = [
 export default function AppHeader(props: AppHeaderProps) {
   return <header className="app-header">
     <div className="header-brand-project">
-      <img className="brand-logo" src="/brand/teamcreator-official-black-on-white.png" alt="TeamCreator" />
+      <img className="brand-logo" src="/brand/teamcreator-mark-2x.webp" alt="TeamCreator" width={151} height={46} fetchPriority="high" />
       {props.projects.length > 0 && <label className="project-picker">
         <span className="sr-only">Proiect activ</span>
         <select value={props.activeId} onChange={(event) => props.onProjectChange(event.target.value)}>
