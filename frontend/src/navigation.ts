@@ -4,7 +4,7 @@ export interface ProjectNavigation {
   projectId: string;
   page: 'context' | 'map' | 'simulation' | 'diagnostic';
   contextPanel: 'sources' | 'review' | 'history';
-  team: { group: 'team' | 'tasks'; taskView: 'list' | 'gantt' | 'kanban' | 'burndown' | 'priorities'; memberId?: string; taskId?: string };
+  team: { group: 'team' | 'tasks'; taskView: 'list' | 'gantt' | 'kanban' | 'burndown' | 'priorities'; memberId?: string; taskId?: string; memberPanel?: 'profile' | 'tasks' | 'relations' };
   decisionTab: 'pending' | 'applied' | 'reports';
   selectedNode: { kind: 'member' | 'task' | 'deliverable'; id: string } | null;
   sourceId: string;
@@ -36,6 +36,7 @@ export function readNavigation(): ProjectNavigation {
     next.team.group = section === 'tasks' ? 'tasks' : 'team';
     if (['list', 'gantt', 'kanban', 'burndown', 'priorities'].includes(view)) next.team.taskView = view as ProjectNavigation['team']['taskView'];
     if (params.get('member')) next.team.memberId = params.get('member')!;
+    if (['profile', 'tasks', 'relations'].includes(params.get('panel') || '')) next.team.memberPanel = params.get('panel') as 'profile' | 'tasks' | 'relations';
     if (params.get('task')) next.team.taskId = params.get('task')!;
   }
   if (next.page === 'diagnostic' && ['pending', 'applied', 'reports'].includes(section)) next.decisionTab = section as ProjectNavigation['decisionTab'];
@@ -51,6 +52,7 @@ export function navigationHash(state: ProjectNavigation): string {
   const query = new URLSearchParams();
   if (state.projectId) query.set('project', state.projectId);
   if (state.page === 'map' && state.team.memberId) query.set('member', state.team.memberId);
+  if (state.page === 'map' && state.team.group === 'team' && state.team.memberPanel && state.team.memberPanel !== 'profile') query.set('panel', state.team.memberPanel);
   if (state.page === 'map' && state.team.taskId) query.set('task', state.team.taskId);
   if (state.page === 'context' && state.sourceId) query.set('source', state.sourceId);
   if (state.page === 'diagnostic' && state.decisionId) query.set('decision', state.decisionId);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertCircle, AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays,
   Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Clock3, FileText, Filter,
@@ -9,13 +9,14 @@ import type { LucideIcon } from 'lucide-react';
 import type { CollaborationProfile, ProjectRecord, ProjectWorkspace, SourceRef } from '../../shared/types';
 import { workingDateAtOffset } from '../../shared/simulation';
 import type { RemainingWorkForecast, SimulationOutput, SimulationResult } from '../../shared/simulation';
+import { getMemberAvatar, MemberAvatarContext } from './member-avatar';
 import TeamPeopleMap from './TeamPeopleMap';
 import './team-workspace.css';
 
 type Group = 'team' | 'tasks';
 type TaskView = 'list' | 'gantt' | 'kanban' | 'burndown' | 'priorities';
-type MemberPanel = 'profile' | 'tasks' | 'relations';
-export type TeamViewState = { group: 'team' | 'tasks'; taskView: 'list' | 'gantt' | 'kanban' | 'burndown' | 'priorities'; memberId?: string; taskId?: string };
+export type MemberPanel = 'profile' | 'tasks' | 'relations';
+export type TeamViewState = { group: 'team' | 'tasks'; taskView: 'list' | 'gantt' | 'kanban' | 'burndown' | 'priorities'; memberId?: string; memberPanel?: MemberPanel; taskId?: string };
 type Props = {
   workspace: ProjectWorkspace;
   onOpenSource: (ref: SourceRef) => void;
@@ -116,21 +117,15 @@ function scenarioFor(output: SimulationOutput | null): SimulationResult | null {
   return output.kind === 'simulation_comparison' ? output.scenario : output;
 }
 
-function avatarCrop(member: ProjectRecord) {
-  let crop = member.avatar_crop || 'top-left';
-  if (member.avatar_is_illustrative && crop === 'bottom-left') crop = 'bottom-right';
-  else if (member.avatar_is_illustrative && crop === 'bottom-right') crop = 'bottom-left';
-  return ({ 'top-left': '0% 0%', 'top-right': '100% 0%', 'bottom-left': '0% 100%', 'bottom-right': '100% 100%' } as const)[crop];
-}
-
 function Avatar({ member, size = 38 }: { member: ProjectRecord | null; size?: number }) {
+  const synthetic = useContext(MemberAvatarContext);
   const initials = member?.title?.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toLocaleUpperCase() || '?';
-  const style = member?.avatar_asset ? { width: size, height: size, backgroundImage: `url(${member.avatar_asset})`, backgroundPosition: avatarCrop(member) } : { width: size, height: size };
-  return <span className={`tw-avatar${member?.avatar_asset ? ' tw-avatar-photo' : ''}`} style={style} aria-label={member?.avatar_is_illustrative ? `Portret ilustrativ pentru ${member.title}` : member?.title || 'Responsabil neînregistrat'}>{member?.avatar_asset ? null : initials}</span>;
+  const avatar = getMemberAvatar(member, synthetic);
+  return <span className={`tw-avatar${avatar ? ' tw-avatar-photo' : ''}`} style={{ width: size, height: size, ...avatar?.style }} aria-label={avatar?.illustrative ? `Portret ilustrativ pentru ${member?.title}` : member?.title || 'Responsabil neînregistrat'}>{avatar ? null : initials}</span>;
 }
 
 function refsForField(record: ProjectRecord, field: string) {
-  return record.field_refs?.[field] || record.source_refs || [];
+  return record.field_refs?.[field] || [];
 }
 
 function EvidenceLinks({ refs, workspace, onOpenSource }: { refs: SourceRef[]; workspace: ProjectWorkspace; onOpenSource: (ref: SourceRef) => void }) {
@@ -293,30 +288,57 @@ function MemberProfileEditor({ member, workspace, onCancel, onSave }: { member: 
   </form>;
 }
 
-function MemberInspector({ member, workspace, panel, setPanel, onSelectTask, onOpenSource, onSave, inspectorRef }: { member: ProjectRecord; workspace: ProjectWorkspace; panel: MemberPanel; setPanel: (panel: MemberPanel) => void; onSelectTask: (id: string) => void; onOpenSource: (ref: SourceRef) => void; onSave: (kind: string, id: string, fields: Record<string, unknown>) => Promise<void>; inspectorRef: React.Ref<HTMLElement> }) {
+function MemberInspector({ member, workspace, panel, setPanel, onSelectTask, onSelectMember, onOpenSource, onSave, inspectorRef, onBackToMap }: { member: ProjectRecord; workspace: ProjectWorkspace; panel: MemberPanel; setPanel: (panel: MemberPanel) => void; onSelectTask: (id: string) => void; onSelectMember: (id: string) => void; onOpenSource: (ref: SourceRef) => void; onSave: (kind: string, id: string, fields: Record<string, unknown>) => Promise<void>; inspectorRef: React.Ref<HTMLElement>; onBackToMap: () => void }) {
   const [editing, setEditing] = useState(false);
-  const assigned = [...workspace.tasks, ...workspace.deliverables].filter((task) => ownerFor(task, workspace)?.id === member.id);
+  const assigned = workspace.tasks.filter((task) => ownerFor(task, workspace)?.id === member.id);
+  const sortedAssigned = [...assigned].sort((a, b) => {
+    const aDate = validDate(taskDeadline(a)?.date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const bDate = validDate(taskDeadline(b)?.date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    return aDate - bDate || a.title.localeCompare(b.title, 'ro-RO');
+  });
   const explicitSkills = member.documented_skills || [];
+  const skillRefs = member.field_refs?.documented_skills || [];
+  const availabilityRefs = member.field_refs?.availability_note || [];
   const related = memberRelations(workspace, member.id);
-  const plannedHours = assigned.reduce((sum, task) => sum + (Number.isFinite(task.effort_hours) ? Number(task.effort_hours) : 0), 0);
-  const evidencedHoursCount = assigned.filter((task) => Number.isFinite(task.effort_hours)).length;
+  const relationPeople = [...new Set(related.map((relation) => relation.otherId))];
+  const quickRelations = relationPeople.map((otherId) => ({
+    otherId,
+    relations: related.filter((relation) => relation.otherId === otherId),
+  }));
   const saveProfile = (fields: Record<string, unknown>) => onSave('member', member.id, fields);
-  const profileRefs = [...refsForField(member, 'role'), ...refsForField(member, 'documented_skills'), ...refsForField(member, 'availability_note')];
-  const titleRefs = refsForField(member, 'title');
-  const workButton = (task: ProjectRecord) => <button type="button" className="tw-member-task-row" key={task.id} onClick={() => onSelectTask(task.id)}><span className="tw-task-row-title"><strong>{task.title}</strong><small>{statusLabel(task.status)} · {task.due ? formatDate(task.due) : 'Fără termen consemnat'}</small></span><span className="tw-task-row-duration">{task.effort_hours != null ? `${task.effort_hours} h efort` : 'Efort necunoscut'}</span><ChevronRight size={15} /></button>;
+  const profileTaskRow = (task: ProjectRecord) => {
+    const deadline = taskDeadline(task);
+    return <button type="button" className="tw-member-task-row" key={task.id} onClick={() => onSelectTask(task.id)}>
+      <span className="tw-task-row-title"><strong>{task.title}</strong><small>{statusLabel(task.status)} · {deadline ? formatDate(deadline.date) : 'Termen necunoscut'}</small></span><ChevronRight size={15} />
+    </button>;
+  };
+  const workButton = (task: ProjectRecord) => <button type="button" className="tw-member-task-row" key={task.id} onClick={() => onSelectTask(task.id)}><span className="tw-task-row-title"><strong>{task.title}</strong><small>{statusLabel(task.status)} · {taskDeadline(task) ? formatDate(taskDeadline(task)?.date) : 'Termen necunoscut'}</small></span><ChevronRight size={15} /></button>;
+  const profileFieldSources = [
+    { label: 'Nume', refs: refsForField(member, 'title') },
+    { label: 'Rol', refs: refsForField(member, 'role') },
+    { label: 'Competențe', refs: refsForField(member, 'documented_skills') },
+    { label: 'Disponibilitate', refs: refsForField(member, 'availability_note') },
+    { label: 'Descriere', refs: refsForField(member, 'description') },
+  ].filter((item) => item.refs.length > 0);
 
   return <aside ref={inspectorRef} className="tw-inspector" aria-label={`Profil ${member.title}`}>
-    <header className="tw-inspector-person"><Avatar member={member} size={74} /><div><h2>{member.title}</h2><p>{member.role || 'Rol neînregistrat'}</p><span className="tw-evidence-pill">{member.member_type === 'person' ? 'Membru' : statusLabel(member.member_type)}</span></div><button type="button" className="tw-icon-button" aria-label="Editează profilul" onClick={() => setEditing((value) => !value)}><Settings2 size={17} /></button></header>
-    <nav className="tw-profile-tabs" aria-label="Detalii membru">{([{ id: 'profile', label: 'Profil' }, { id: 'tasks', label: 'Sarcini' }, { id: 'relations', label: 'Relații' }] as const).map((item) => <button key={item.id} type="button" className={panel === item.id ? 'is-active' : ''} aria-pressed={panel === item.id} onClick={() => { setEditing(false); setPanel(item.id); }}>{item.label}{item.id === 'tasks' ? ` (${assigned.length})` : item.id === 'relations' ? ` (${related.length})` : ''}</button>)}</nav>
+    <button type="button" className="tw-back-to-map" onClick={onBackToMap}><ArrowLeft size={15} /> Înapoi la hartă</button>
+    <header className="tw-inspector-person"><Avatar member={member} size={56} /><div><h2>{member.title}</h2><p>{member.role || 'Rol neînregistrat'}</p><span className="tw-evidence-pill">{member.member_type === 'person' ? 'Membru' : statusLabel(member.member_type)}</span></div><button type="button" className="tw-icon-button" aria-label="Editează profilul" onClick={() => setEditing((value) => !value)}><Settings2 size={17} /></button></header>
+    <nav className="tw-profile-tabs" aria-label="Detalii membru">{([{ id: 'profile', label: 'Profil' }, { id: 'tasks', label: 'Sarcini' }, { id: 'relations', label: 'Relații' }] as const).map((item) => <button key={item.id} type="button" className={panel === item.id ? 'is-active' : ''} aria-pressed={panel === item.id} onClick={() => { setEditing(false); setPanel(item.id); }}>{item.label}{item.id === 'tasks' ? ` (${assigned.length})` : item.id === 'relations' ? ` (${relationPeople.length})` : ''}</button>)}</nav>
     {editing ? <MemberProfileEditor key={member.id} member={member} workspace={workspace} onCancel={() => setEditing(false)} onSave={saveProfile} /> : <>
-      {panel === 'profile' && <div className="tw-inspector-body">
-        <div className="tw-profile-metrics"><div><span>Sarcini alocate</span><strong>{assigned.length}</strong></div><div><span>Efort planificat consemnat</span><strong>{evidencedHoursCount ? `${plannedHours} h` : 'Necunoscut'}</strong><small>Nu reprezintă disponibilitatea</small></div></div>
-        <section className="tw-profile-field"><div className="tw-profile-section-title"><h3>Competențe documentate</h3>{explicitSkills.length > 0 && <span className="tw-evidence-pill is-known">Din sursă</span>}</div>{explicitSkills.length ? <div className="tw-skill-tags">{explicitSkills.map((skill) => <span key={skill}>{skill}</span>)}</div> : <p className="tw-unknown">Necunoscute</p>}<EvidenceLinks refs={member.field_refs?.documented_skills || member.source_refs || []} workspace={workspace} onOpenSource={onOpenSource} /></section>
-        <section className="tw-profile-field"><div className="tw-profile-section-title"><h3>Disponibilitate</h3><span className={`tw-evidence-pill ${member.availability_note ? 'is-known' : 'is-unknown'}`}>{member.availability_note ? 'Din sursă' : 'Necunoscută'}</span></div><p className={member.availability_note ? '' : 'tw-unknown'}>{member.availability_note || 'Nu este consemnată.'}</p><small>Fără conversie automată în ore sau capacitate.</small><EvidenceLinks refs={member.field_refs?.availability_note || []} workspace={workspace} onOpenSource={onOpenSource} /></section>
-        <CollaborationSummary member={member} workspace={workspace} />
-        <section className="tw-profile-field"><div className="tw-profile-section-title"><h3>Rol în proiect</h3></div><p>{member.role || 'Neînregistrat'}</p><EvidenceLinks refs={member.field_refs?.role || member.source_refs || []} workspace={workspace} onOpenSource={onOpenSource} /></section>
-        {member.description && <section className="tw-profile-field"><h3>Descriere</h3><p>{member.description}</p><EvidenceLinks refs={member.field_refs?.description || []} workspace={workspace} onOpenSource={onOpenSource} /></section>}
-        {titleRefs.length > 0 && <EvidenceLinks refs={titleRefs} workspace={workspace} onOpenSource={onOpenSource} />}
+      {panel === 'profile' && <div className="tw-inspector-body tw-inspector-profile">
+        <section className="tw-profile-compact-section"><div className="tw-profile-section-title"><h3>Disponibilitate</h3><span className={`tw-evidence-pill ${member.availability_note ? 'is-known' : 'is-unknown'}`}>{member.availability_note ? (availabilityRefs.length ? 'Din sursă' : 'Consemnată') : 'Necunoscută'}</span></div><p className={member.availability_note ? '' : 'tw-unknown'}>{member.availability_note || 'Nu este consemnată.'}</p></section>
+        <section className="tw-profile-compact-section"><div className="tw-profile-section-title"><h3>Sarcini</h3><button type="button" className="tw-link-button" onClick={() => setPanel('tasks')}>{assigned.length > 3 ? `Toate (${assigned.length})` : `Vezi lista (${assigned.length})`} <ArrowRight size={14} /></button></div>{assigned.length ? <div className="tw-member-task-list">{sortedAssigned.slice(0, 3).map(profileTaskRow)}</div> : <p className="tw-unknown">Nu are sarcini alocate în registru.</p>}</section>
+        <section className="tw-profile-compact-section"><div className="tw-profile-section-title"><h3>Lucrează cu</h3>{relationPeople.length > 4 ? <button type="button" className="tw-link-button" onClick={() => setPanel('relations')}>Toate ({relationPeople.length}) <ArrowRight size={14} /></button> : <span>{relationPeople.length}</span>}</div>{quickRelations.length ? <div className="tw-profile-relation-list">{quickRelations.slice(0, 4).map(({ otherId, relations: personRelations }) => {
+          const colleague = workspace.members.find((candidate) => candidate.id === otherId);
+          const kinds = [...new Set(personRelations.map((relation) => relation.kind))].map((kind) => kind === 'handoff' ? 'Predare' : kind === 'review' ? 'Revizuire' : kind === 'approval' ? 'Aprobare' : 'Dependență');
+          const taskCount = new Set(personRelations.flatMap((relation) => relation.tasks.map((task) => task.id))).size;
+          return <button type="button" className="tw-profile-relation-row" key={otherId} onClick={() => onSelectMember(otherId)}><Avatar member={colleague || null} size={34} /><span><strong>{colleague?.title || 'Membru necunoscut'}</strong><small>{colleague?.role || 'Rol necunoscut'}</small><em>{kinds.join(' · ')} · {taskCount} {taskCount === 1 ? 'sarcină' : 'sarcini'}</em></span><ChevronRight size={15} /></button>;
+        })}</div> : <p className="tw-unknown">Nu există relații între responsabili înregistrate.</p>}</section>
+        <section className="tw-profile-compact-section"><div className="tw-profile-section-title"><h3>Competențe</h3><span className={`tw-evidence-pill ${explicitSkills.length ? 'is-known' : 'is-unknown'}`}>{explicitSkills.length ? (skillRefs.length ? 'Din sursă' : 'Consemnate') : 'Necunoscute'}</span></div>{explicitSkills.length ? <div className="tw-skill-tags">{explicitSkills.slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}{explicitSkills.length > 4 && <span>+{explicitSkills.length - 4}</span>}</div> : <p className="tw-unknown">Nu sunt înregistrate.</p>}</section>
+        <details className="tw-profile-disclosure"><summary>Citate pe câmpuri <span>{profileFieldSources.reduce((sum, item) => sum + item.refs.length, 0)}</span></summary><div className="tw-profile-disclosure-body">{profileFieldSources.length ? profileFieldSources.map((item) => <section className="tw-profile-field" key={item.label}><h3>{item.label}</h3><EvidenceLinks refs={item.refs} workspace={workspace} onOpenSource={onOpenSource} /></section>) : <p className="tw-unknown">Nu sunt citate atribuite unor câmpuri.</p>}{member.description && <section className="tw-profile-field"><h3>Descriere</h3><p>{member.description}</p></section>}</div></details>
+        <details className="tw-profile-disclosure"><summary>Citate generale <span>{member.source_refs?.length || 0}</span></summary><div className="tw-profile-disclosure-body"><p className="tw-source-scope-note">Atașate profilului, fără atribuirea unui câmp.</p><EvidenceLinks refs={member.source_refs || []} workspace={workspace} onOpenSource={onOpenSource} /></div></details>
+        <details className="tw-profile-disclosure"><summary>Colaborare declarată <span>{member.collaboration_profile ? 'Consemnată' : 'Necunoscută'}</span></summary><div className="tw-profile-disclosure-body"><CollaborationSummary member={member} workspace={workspace} /></div></details>
       </div>}
       {panel === 'tasks' && <div className="tw-inspector-body"><div className="tw-detail-title"><h3>Sarcini</h3><span>{assigned.length}</span></div>{assigned.length ? <div className="tw-member-task-list">{assigned.map(workButton)}</div> : <p className="tw-unknown">Nu există sarcini alocate în registru.</p>}<button type="button" className="tw-link-button" onClick={() => onSelectTask('')}>Deschide lista de sarcini <ArrowRight size={14} /></button></div>}
       {panel === 'relations' && <div className="tw-inspector-body"><div className="tw-detail-title"><h3>Relații în proiect</h3><span>{related.length}</span></div>{related.length ? <div className="tw-relations-list">{related.map((relation) => {
@@ -631,26 +653,27 @@ function SelectedTaskStrip({ task, workspace, onClose, onOpenSource, onSave, onS
 export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreate, onOpenDecision, simulationOutput, focusedRecord, viewState, onViewStateChange }: Props) {
   const [group, setGroup] = useState<Group>(viewState?.group || 'team');
   const [taskView, setTaskView] = useState<TaskView>(viewState?.taskView || 'list');
-  const [memberPanel, setMemberPanel] = useState<MemberPanel>('profile');
+  const [memberPanel, setMemberPanel] = useState<MemberPanel>(viewState?.memberPanel || 'profile');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(viewState?.memberId || workspace.members[0]?.id || null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(viewState?.taskId || null);
   const inspectorRef = useRef<HTMLElement | null>(null);
+  const mapColumnRef = useRef<HTMLDivElement | null>(null);
   const lastAppliedFocus = useRef<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const applyViewState = (next: TeamViewState) => {
-    setGroup(next.group); setTaskView(next.taskView); setSelectedMemberId(next.memberId || null); setSelectedTaskId(next.taskId || null);
+    setGroup(next.group); setTaskView(next.taskView); setSelectedMemberId(next.memberId || null); setSelectedTaskId(next.taskId || null); setMemberPanel(next.memberPanel || 'profile');
     onViewStateChange?.(next);
   };
   const changeView = (patch: Partial<TeamViewState>) => {
-    const next: TeamViewState = { group, taskView, ...(selectedMemberId ? { memberId: selectedMemberId } : {}), ...(selectedTaskId ? { taskId: selectedTaskId } : {}), ...patch };
+    const next: TeamViewState = { group, taskView, memberPanel, ...(selectedMemberId ? { memberId: selectedMemberId } : {}), ...(selectedTaskId ? { taskId: selectedTaskId } : {}), ...patch };
     applyViewState(next);
   };
   useEffect(() => {
     if (!viewState) return;
     setGroup(viewState.group); setTaskView(viewState.taskView);
-    setSelectedMemberId(viewState.memberId || null); setSelectedTaskId(viewState.taskId || null);
-  }, [viewState?.group, viewState?.taskView, viewState?.memberId, viewState?.taskId]);
+    setSelectedMemberId(viewState.memberId || null); setSelectedTaskId(viewState.taskId || null); setMemberPanel(viewState.memberPanel || 'profile');
+  }, [viewState?.group, viewState?.taskView, viewState?.memberId, viewState?.memberPanel, viewState?.taskId]);
   useEffect(() => { if (!workspace.members.some((member) => member.id === selectedMemberId)) setSelectedMemberId(workspace.members[0]?.id || null); }, [workspace.members, selectedMemberId]);
   useEffect(() => {
     if (viewState) return;
@@ -673,16 +696,16 @@ export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreat
   const linkedTaskDependencies = selectedTask?.depends_on || [];
   const taskSet = new Set(filteredTasks.map((task) => task.id));
 
-  return <section className="team-workspace">
+  return <MemberAvatarContext.Provider value={Boolean(workspace.project.synthetic)}><section className="team-workspace">
     <header className="tw-page-head"><h1>{group === 'team' ? 'Echipă' : 'Sarcini'}</h1>{group === 'team' && <button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={17} /> Membru</button>}</header>
     <div className="tw-toolbar">
-      <div className="tw-group-tabs" role="tablist" aria-label="Spații de lucru"><button type="button" role="tab" aria-selected={group === 'team'} className={group === 'team' ? 'is-active' : ''} onClick={() => changeView({ group: 'team', taskId: undefined })}>Echipă</button><button type="button" role="tab" aria-selected={group === 'tasks'} className={group === 'tasks' ? 'is-active' : ''} onClick={() => changeView({ group: 'tasks', memberId: undefined })}>Sarcini</button></div>
+      <div className="tw-group-tabs" role="tablist" aria-label="Spații de lucru"><button type="button" role="tab" aria-selected={group === 'team'} className={group === 'team' ? 'is-active' : ''} onClick={() => changeView({ group: 'team', taskId: undefined, memberPanel })}>Echipă</button><button type="button" role="tab" aria-selected={group === 'tasks'} className={group === 'tasks' ? 'is-active' : ''} onClick={() => changeView({ group: 'tasks', memberId: undefined })}>Sarcini</button></div>
       {group === 'tasks' && <div className="tw-task-view-tabs" role="tablist" aria-label="Vederi pentru același registru de sarcini">{taskViews.map(({ id, label, icon: Icon }) => <button type="button" role="tab" aria-selected={taskView === id} className={taskView === id ? 'is-active' : ''} key={id} onClick={() => changeView({ taskView: id })}><Icon size={15} />{label}</button>)}</div>}
        <div className="tw-toolbar-actions">{group === 'tasks' && <><label className="tw-search"><Search size={16} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Caută sarcini…" aria-label="Caută sarcini" /></label><TaskFilter statusFilter={statusFilter} setStatusFilter={setStatusFilter} /><button type="button" className="tw-primary-button" onClick={() => onCreate('task')}><Plus size={16} /> Sarcină</button></>}</div>
     </div>
     {group === 'team' ? <div className="tw-team-layout">
-       <div className="tw-team-map-column"><TeamPeopleMap workspace={workspace} selectedMemberId={selectedMemberId} onSelectMember={(id) => { changeView({ group: 'team', memberId: id, taskId: undefined }); setMemberPanel('profile'); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} onSelectRelation={(id) => { changeView({ group: 'team', memberId: id, taskId: undefined }); setMemberPanel('relations'); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} /></div>
-      {selectedMember ? <MemberInspector key={selectedMember.id} member={selectedMember} workspace={workspace} panel={memberPanel} setPanel={setMemberPanel} onSelectTask={(id) => { changeView({ group: id ? 'tasks' : 'tasks', taskView: 'list', memberId: undefined, taskId: id || undefined }); }} onOpenSource={onOpenSource} onSave={onSave} inspectorRef={inspectorRef} /> : <aside className="tw-inspector tw-inspector-empty"><CircleHelp size={22} /><strong>Nu există membri înregistrați.</strong><p>Adaugă o persoană pentru a construi harta echipei.</p><button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={15} /> Adaugă membru</button></aside>}
+       <div className="tw-team-map-column" ref={mapColumnRef}><TeamPeopleMap workspace={workspace} selectedMemberId={selectedMemberId} onSelectMember={(id) => { changeView({ group: 'team', memberId: id, memberPanel: 'profile', taskId: undefined }); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} onSelectRelation={(id) => { changeView({ group: 'team', memberId: id, memberPanel: 'relations', taskId: undefined }); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} /></div>
+      {selectedMember ? <MemberInspector key={selectedMember.id} member={selectedMember} workspace={workspace} panel={memberPanel} setPanel={(panel) => changeView({ memberPanel: panel })} onSelectTask={(id) => { changeView({ group: 'tasks', taskView: 'list', memberId: undefined, taskId: id || undefined }); }} onSelectMember={(id) => { changeView({ group: 'team', memberId: id, memberPanel: 'relations', taskId: undefined }); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} onOpenSource={onOpenSource} onSave={onSave} inspectorRef={inspectorRef} onBackToMap={() => mapColumnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} /> : <aside className="tw-inspector tw-inspector-empty"><CircleHelp size={22} /><strong>Nu există membri înregistrați.</strong><p>Adaugă o persoană pentru a construi harta echipei.</p><button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={15} /> Adaugă membru</button></aside>}
     </div> : <div className="tw-task-workspace">
       {taskView === 'list' && <TaskListView tasks={filteredTasks} workspace={workspace} selectedTaskId={selectedTaskId} onSelect={setTask} />}
       {taskView === 'gantt' && <GanttView tasks={filteredTasks} workspace={workspace} selectedTaskId={selectedTaskId} onSelect={setTask} simulationOutput={simulationOutput} />}
@@ -694,5 +717,5 @@ export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreat
       {simulationOutput && <div className="tw-simulation-context"><Activity size={14} /><span>Simulare salvată disponibilă: {simulationOutput.kind === 'simulation_run' ? `${simulationOutput.iterations.toLocaleString('ro-RO')} iterații, P50 ${simulationOutput.completionDays.p50.toFixed(1)} zile` : `Comparație, diferență P50 ${simulationOutput.completionDeltaDays.p50.toFixed(1)} zile`}.</span></div>}
       {taskView === 'gantt' && <p className="tw-data-note"><Clock3 size={14} />Barele folosesc doar începutul planificat și termenul consemnat. Termenul necunoscut rămâne fără poziție.</p>}
     </div>}
-  </section>;
+  </section></MemberAvatarContext.Provider>;
 }
