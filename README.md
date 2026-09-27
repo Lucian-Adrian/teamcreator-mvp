@@ -4,6 +4,8 @@ Live demo: https://live.teamcreator.ai
 
 TeamCreator helps a project manager review sources, connect team responsibilities and dependencies, compare delivery scenarios, and record decisions. The included streetlight project is synthetic. Names, source excerpts, dates, and portraits are demonstration material.
 
+The phone layout keeps Context, Echipă, Simulare and Decizii visible. People have a separate compact canvas layout, source review adapts to narrow screens, and simulation branches remain selectable with their details below the chart.
+
 [Development history, iterations and verification](DEVELOPMENT.md) · [Public commits](https://github.com/Lucian-Adrian/teamcreator-mvp/commits/main/)
 
 ## Run locally

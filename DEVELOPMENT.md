@@ -10,6 +10,28 @@ Lucian directed the product, reviewed the interface, approved the v7 visual dire
 
 ## Milestones
 
+### Phone presentation and clearer relationships
+
+Lucian asked for a cleaner map based on the pitch deck, useful relationship controls, quieter integration cards and a mobile version suitable for the hackathon judges.
+
+- `a1f0ce5`: removed repeated demo badges and connection warnings from presentation integration cards, retained real host verification, and added keyboard focus handling to the setup dialogs.
+- `52bc3d2`: compact portrait cards, rounded connections, person search, focused relationships, and automatic framing after nodes are measured. Phone and desktop positions are independent.
+- `a2d47ab`: four visible project tabs on phones, a compact sticky header, and an explicit profile action that keeps selection from scrolling away from the map.
+- `a58986d`: compact asymmetric simulation branches, readable family labels and larger touch controls.
+- `458a356`: mobile source cards show all four lifecycle states; the desktop navigation labels fit at 1280px.
+
+The 360px and 390px browser checks covered all four navigation labels, the people canvas without horizontal overflow, relation filtering and search. The Jira dialog passed initial focus, keyboard containment, Escape and focus restoration. A real sampled simulation run remained selectable on mobile. Production builds in both checkouts produce matching assets. Motion respects reduced-motion preferences.
+
+Published as `2026-09-27-mobile-presentation`, Cloudflare version `cb537c75-7358-478f-82ff-a69037e0f6c2`. Desktop review additionally checked dragging a person with attached edges and reset. The navigation overlap found at 1280px was corrected and checked in the final build.
+
+![Source review on a phone](docs/mobile-context.jpg)
+
+![People map on a phone](docs/mobile-team.jpg)
+
+![Simulation on a phone](docs/mobile-simulation.jpg)
+
+![People map and compact profile on desktop](docs/team-presentation-refined.jpg)
+
 ### Connected team canvas after the second review
 
 Lucian rejected the large profiles and detached arrows in the people map, requested generated portraits for every person, and then explicitly asked to replace the implementation with a canvas of connected people.

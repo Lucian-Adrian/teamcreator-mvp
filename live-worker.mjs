@@ -1,5 +1,5 @@
 import { handleAI, aiStatus } from './live-ai.mjs';
-export const RELEASE = '2026-09-27-team-canvas';
+export const RELEASE = '2026-09-27-mobile-presentation';
 
 export default {
   async fetch(request, env) {
