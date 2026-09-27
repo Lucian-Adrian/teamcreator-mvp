@@ -430,3 +430,59 @@
   .tc-sim-zoom-controls { justify-content: flex-start; flex-wrap: wrap; }
   .tc-sim-timeline-row { grid-template-columns: minmax(95px, 135px) minmax(0, 1fr) 80px; }
 }
+
+/* Presentation view: the branch map leads; model controls are below it. */
+.tc-sim-heading { margin:0 0 18px;align-items:center; }
+.tc-sim-heading h2 { font-size:26px;line-height:1.2;margin:0 0 6px; }
+.tc-sim-heading p { font-size:14px;margin:0;color:#758295; }
+.tc-sim-results.has-output { grid-template-columns:minmax(0,1fr) 286px;gap:16px 22px;align-items:start; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-path-card { grid-column:1;grid-row:1;padding:0;border:0;box-shadow:none;background:#fff; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-path-inspector-card { grid-column:2;grid-row:1;padding:24px 0 20px 22px;margin-top:26px;border:0;border-left:1px solid #e6ebf0;border-radius:0;box-shadow:none; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-outcome { grid-column:1;grid-row:2; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-metrics-card { grid-column:2;grid-row:2; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-paired-card { grid-column:1/-1;grid-row:3; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-model-notes { grid-column:1/-1;grid-row:4; }
+.tc-sim-map-label {display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#465b72;padding:8px 0; }
+.tc-sim-map-label span {font-size:12px;color:#8492a3; }
+.tc-sim-organic-map {border:0;border-radius:0;padding:0;background:#fff;position:relative; }
+.tc-sim-organic-map svg {width:100%;height:auto;min-height:420px;max-height:none;display:block;border:0;background:#fff; }
+.tc-sim-family-map-label text {font-size:16px;font-weight:560; }
+.tc-sim-origin-label {font-size:13px;fill:#516174; }
+.tc-sim-map-tools {display:flex;align-items:center;gap:5px;padding:10px 0 0;font-size:11px;color:#79889a; }
+.tc-sim-map-tools button {border:1px solid #e1e7ef;border-radius:5px;background:#fff;color:#5f738a;min-width:30px;height:28px;padding:0 8px;font-size:12px;cursor:pointer; }
+.tc-sim-map-tools button:disabled {opacity:.35;cursor:default; }
+.tc-sim-map-tools span {padding:0 5px; }
+.tc-sim-map-tools small {margin-left:8px; }
+.tc-sim-map-caption {font-size:11px;color:#99a3af;margin:5px 0 12px; }
+.tc-sim-click-prompt {color:#7c8a9b; }
+.tc-sim-click-prompt h3 {font-size:19px;line-height:1.4;color:#26384c;margin:18px 0 8px; }
+.tc-sim-click-prompt p {font-size:14px;line-height:1.65;margin:0 0 28px; }
+.tc-sim-click-prompt > div {display:grid;gap:7px;margin:25px 0;border-top:1px solid #edf0f4;padding-top:22px; }
+.tc-sim-click-prompt strong {font-size:23px;color:#344b65;font-weight:550; }
+.tc-sim-click-prompt > small {font-size:12px;line-height:1.6; }
+.tc-sim-prompt-mark {display:flex;align-items:center;justify-content:center;width:48px;height:48px;background:#f1f6fb;color:#7290ae;border-radius:50%; }
+.tc-sim-path-facts > div {background:transparent;border:0;border-bottom:1px solid #e8edf2;border-radius:0;padding:16px 0; }
+.tc-sim-path-facts strong {font-size:22px;font-weight:550; }
+.tc-sim-path-provenance {font-size:10px;color:#9aa5b3;margin-top:20px; }
+.tc-sim-workbench {margin-top:14px;border:1px solid #e7ebf1;border-radius:8px;background:#fff; }
+.tc-sim-workbench > summary {display:flex;align-items:center;gap:10px;padding:16px 18px;cursor:pointer;font-size:14px;color:#344a61;list-style:none; }
+.tc-sim-workbench > summary small {color:#929cab;font-size:12px;margin-left:auto; }
+.tc-sim-secondary-settings {margin:0 16px 16px;border:0;background:#f9fbfd; }
+.tc-sim-secondary-settings .tc-sim-assumptions {margin-left:0; }
+.tc-sim-secondary-settings .tc-sim-assumption-panel {position:static;box-shadow:none;border:0; }
+.tc-sim-secondary-settings > .tc-sim-assumptions[open] {flex:1 1 100%; }
+.tc-sim-footer {font-size:10px;opacity:.65; }
+@media(max-width:900px){
+.tc-sim-results.has-output {grid-template-columns:minmax(0,1fr);gap:16px;}
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-path-card {grid-row:1;grid-column:1;}
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-path-inspector-card {grid-row:2;grid-column:1;margin:0;padding:18px;border:1px solid #e6ebf0;border-radius:8px;}
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-outcome {grid-row:3;grid-column:1;}
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-metrics-card {grid-row:4;grid-column:1;}
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-paired-card {grid-row:5;grid-column:1;}
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-model-notes {grid-row:6;grid-column:1;}
+}
+@media(max-width:650px){
+.tc-sim-heading {align-items:flex-start;gap:12px;}.tc-sim-heading h2{font-size:23px;}.tc-sim-heading p{font-size:12px;max-width:220px;}.tc-sim-heading-actions button{font-size:12px;padding:8px;white-space:nowrap;}
+.tc-sim-organic-map svg{min-height:240px;}.tc-sim-map-label span{font-size:10px;}.tc-sim-map-tools small{display:none;}.tc-sim-workbench > summary small{display:none;}.tc-sim-secondary-settings{margin:0 8px 8px;}
+}
+.tc-sim-inspector-close{align-self:flex-start;border:0;background:transparent;color:#7c8b9b;padding:4px;cursor:pointer}.tc-sim-path-inspector-card .tc-sim-card-heading{align-items:flex-start}
