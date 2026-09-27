@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Activity, AlertCircle, CalendarDays, Check, ChevronRight, CircleHelp, LoaderCircle, Play, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ChangeEvent, type PointerEvent as PointerEventType } from 'react';
+import { Activity, AlertCircle, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, LoaderCircle, Minus, Play, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import {
   compareSimulation,
   createCapacityIntervention,
@@ -60,6 +60,9 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
   const [error, setError] = useState<string | null>(null);
   const [validationDetails, setValidationDetails] = useState<string[]>([]);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
+  const [selectedFamily, setSelectedFamily] = useState<SimulationPath['familyId'] | 'all'>('all');
+  const [hoveredPathId, setHoveredPathId] = useState<string | null>(null);
+  const [selectedStageFocus, setSelectedStageFocus] = useState<{ pathId: string; taskId: string } | null>(null);
   const [interventionMode, setInterventionMode] = useState<InterventionMode>(initialIntervention?.kind || 'duration_shift');
   const [interventionTaskId, setInterventionTaskId] = useState(initialIntervention?.kind === 'duration_shift' ? initialIntervention.taskId : workspace.tasks[0]?.id || '');
   const [interventionDays, setInterventionDays] = useState(initialIntervention?.kind === 'duration_shift' ? initialIntervention.days : -1);
@@ -90,7 +93,13 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
     || output.configFingerprint !== currentFingerprints.config));
   const visibleResult = outputIsStale ? null : currentResult;
   const visibleComparison = outputIsStale ? null : currentComparison;
-  const selectedPath = visibleResult?.paths.find((path) => path.id === selectedPathId) || visibleResult?.paths.reduce((closest, path) => Math.abs(path.targetQuantile - 50) < Math.abs(closest.targetQuantile - 50) ? path : closest) || null;
+  const plottedPaths = visibleResult?.paths.filter((path) => selectedFamily === 'all' || path.familyId === selectedFamily) || [];
+  const selectedPath = plottedPaths.find((path) => path.id === selectedPathId)
+    || plottedPaths.reduce<SimulationPath | null>((closest, path) => !closest || Math.abs(path.targetQuantile - 50) < Math.abs(closest.targetQuantile - 50) ? path : closest, null);
+  const inspectedPath = plottedPaths.find((path) => path.id === hoveredPathId) || selectedPath;
+  const inspectedStage = inspectedPath && selectedStageFocus?.pathId === inspectedPath.id
+    ? inspectedPath.tasks.find((task) => task.id === selectedStageFocus.taskId) || null
+    : null;
   const activeTaskCount = tasks.filter((task) => !isCompleted(task)).length;
   const validRiskDraft = Boolean(riskLabel.trim() && riskTaskIds.length && riskProbability >= 0 && riskProbability <= 100 && riskMin >= 1 && riskMin <= riskMode && riskMode <= riskMax);
 
@@ -105,6 +114,9 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
       setOutput(null);
     }
     setSelectedPathId(null);
+    setSelectedFamily('all');
+    setHoveredPathId(null);
+    setSelectedStageFocus(null);
     setInterventionTaskId(workspace.tasks[0]?.id || '');
     setInterventionMemberId(workspace.members[0]?.id || '');
     setRiskTaskIds(workspace.tasks.slice(0, 1).map((task) => task.id));
@@ -193,6 +205,9 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
         });
       setOutput(result);
       setSelectedPathId(null);
+      setSelectedFamily('all');
+      setHoveredPathId(null);
+      setSelectedStageFocus(null);
     } catch (reason) {
       if (reason instanceof Error && reason.name === 'AbortError') return;
       if (reason instanceof SimulationValidationError) {
@@ -205,6 +220,21 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
       if (controller.current === runController) controller.current = null;
       setRunning(false);
     }
+  };
+
+  const selectPath = (id: string) => { setSelectedPathId(id); setHoveredPathId(null); setSelectedStageFocus(null); };
+  const selectStage = (pathId: string, taskId: string) => { setSelectedPathId(pathId); setHoveredPathId(null); setSelectedStageFocus({ pathId, taskId }); };
+
+  const selectFamily = (familyId: SimulationPath['familyId'] | 'all') => {
+    setSelectedFamily(familyId);
+    setHoveredPathId(null);
+    setSelectedStageFocus(null);
+    if (!visibleResult) return;
+    const paths = visibleResult.paths.filter((path) => familyId === 'all' || path.familyId === familyId);
+    const family = familyId === 'all' ? null : visibleResult.families.find((item) => item.id === familyId);
+    const targetDays = family?.completionDays.p50 ?? visibleResult.completionDays.p50;
+    const representative = paths.reduce<SimulationPath | null>((closest, path) => !closest || Math.abs(path.completionDays - targetDays) < Math.abs(closest.completionDays - targetDays) ? path : closest, null);
+    setSelectedPathId(representative?.id || null);
   };
 
   const buildIntervention = (): SimulationIntervention | null => {
@@ -242,21 +272,18 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
           <h2 id="tc-simulation-title">Simulare</h2>
           <p>Compară datele proiectului cu ipotezele pe care le poți schimba.</p>
         </div>
-        <div className="tc-sim-heading-actions">
-          {running ? <button type="button" className="tc-sim-button tc-sim-quiet" onClick={cancel}><X size={14} /> Anulează</button> : <button type="button" className="tc-sim-button tc-sim-primary" onClick={() => void run('baseline')} disabled={!activeTaskCount}><Play size={14} /> Rulează Monte Carlo</button>}
-        </div>
       </header>
 
-      <div className="tc-sim-layout">
-        <div className="tc-sim-controls">
-          <section className="tc-sim-card">
-            <div className="tc-sim-card-heading"><div><h3>Configurare rulare</h3><p>Repetă aceleași extrageri folosind seed-ul salvat.</p></div><SlidersHorizontal size={16} /></div>
-            <div className="tc-sim-run-inputs">
-              <label>Număr de rulări<input type="number" min={MIN_ITERATIONS} max={MAX_ITERATIONS} step={100} value={config.iterations} onChange={(event) => updateConfig((current) => ({ ...current, iterations: numberValue(event, current.iterations) }))} /></label>
-              <label>Seed<input type="number" min={0} max={4_294_967_295} step={1} value={config.seed} onChange={(event) => updateConfig((current) => ({ ...current, seed: numberValue(event, current.seed) }))} /></label>
-            </div>
-            <div className="tc-sim-inline-note"><CircleHelp size={14} /><span>Seed-ul și intrările egale produc aceleași rezultate. Modifică seed-ul pentru un nou eșantion Monte Carlo.</span></div>
-          </section>
+      <div className="tc-sim-toolbar" aria-label="Setări rapide ale simulării">
+        <label>Rulări<input aria-label="Număr de simulări" type="number" min={MIN_ITERATIONS} max={MAX_ITERATIONS} step={100} value={config.iterations} onChange={(event) => updateConfig((current) => ({ ...current, iterations: numberValue(event, current.iterations) }))} /></label>
+        <label>Seed<input aria-label="Seed aleatoriu" type="number" min={0} max={4_294_967_295} step={1} value={config.seed} onChange={(event) => updateConfig((current) => ({ ...current, seed: numberValue(event, current.seed) }))} /></label>
+        <span className="tc-sim-toolbar-note">Aceleași intrări și seed reproduc perechea de extrageri.</span>
+        {running ? <button type="button" className="tc-sim-button tc-sim-quiet" onClick={cancel}><X size={14} /> Anulează</button> : <button type="button" className="tc-sim-button tc-sim-primary" onClick={() => void run('baseline')} disabled={!activeTaskCount}><Play size={14} /> Rulează</button>}
+        <details className="tc-sim-assumptions">
+          <summary><SlidersHorizontal size={15} /> Ipoteze <ChevronDown size={14} /></summary>
+          <div className="tc-sim-assumption-panel">
+            <div className="tc-sim-inline-note"><CircleHelp size={14} /><span>Duratele, calendarul, capacitatea și factorii de risc sunt configurări manuale. Revizuiește-le înainte să interpretezi distribuția modelată.</span></div>
+            <div className="tc-sim-controls">
 
           <details className="tc-sim-card tc-sim-advanced">
             <summary className="tc-sim-card-heading"><div><h3>Calendarul simulării</h3><p>Etichetele de dată folosesc începutul, zilele lucrătoare și sărbătorile configurate.</p></div><CalendarDays size={16} /></summary>
@@ -322,40 +349,46 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
             {interventionMode === 'duration_shift' ? <div className="tc-sim-intervention-fields"><label>Sarcină<select value={interventionTaskId} onChange={(event) => setInterventionTaskId(event.target.value)}>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select></label><label>Ajustare zile<input type="number" step={0.5} value={interventionDays} onChange={(event) => setInterventionDays(numberValue(event, interventionDays))} /></label></div> : <div className="tc-sim-intervention-fields"><label>Membru<select value={interventionMemberId} onChange={(event) => setInterventionMemberId(event.target.value)}>{members.map((member) => <option key={member.id} value={member.id}>{member.title}</option>)}</select></label><label>Disponibilitate %<input type="number" min={1} max={100} value={Math.round(interventionAvailability * 100)} onChange={(event) => setInterventionAvailability(numberValue(event, interventionAvailability * 100) / 100)} /></label><label>Simultan<input type="number" min={1} max={50} value={interventionConcurrency} onChange={(event) => setInterventionConcurrency(numberValue(event, interventionConcurrency))} /></label></div>}
             <button type="button" className="tc-sim-button tc-sim-compare" onClick={() => void run('compare')} disabled={!activeTaskCount || (interventionMode === 'duration_shift' ? !interventionTaskId : !interventionMemberId) || running}><RotateCcw size={14} /> Compară intervenția</button>
           </section>
+            </div>
+          </div>
+        </details>
         </div>
 
-        <div className="tc-sim-results">
+        <div className={`tc-sim-results${visibleComparison ? ' has-comparison' : ''}${visibleResult ? ' has-output' : ''}${running ? ' is-running' : ''}`}>
           {running && <div className="tc-sim-progress" role="status"><div className="tc-sim-progress-top"><LoaderCircle size={15} className="tc-sim-spin" /><strong>{output?.kind === 'simulation_comparison' ? 'Calculez perechea de scenarii' : 'Rulez extragerile Monte Carlo'}</strong><span>{Math.round(progress * 100)}%</span></div><div className="tc-sim-progress-track"><span style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }} /></div><small>{config.iterations.toLocaleString('ro-RO')} rulări · seed {config.seed}</small></div>}
           {error && <div className="tc-sim-error"><AlertCircle size={16} /><div><strong>{error}</strong>{validationDetails.length > 0 && <ul>{validationDetails.map((detail, index) => <li key={`${index}-${detail}`}>{detail}</li>)}</ul>}</div></div>}
           {outputIsStale && !running && <div className="tc-sim-stale"><AlertCircle size={16} /><div><strong>Rezultatul salvat este depășit</strong><span>S-au schimbat datele proiectului, intrările sau versiunea modelului. Rulează din nou înainte să folosești acest rezultat în diagnostic.</span></div></div>}
           {(!output || outputIsStale) && !running && <div className="tc-sim-result-empty"><span className="tc-sim-empty-icon"><Activity size={23} /></span><h3>{outputIsStale ? 'Recalculează simularea' : 'Rezultatele apar aici'}</h3><p>Configurează intervalele și capacitatea, apoi rulează simularea pentru a vedea distribuția și traseele eșantionate.</p><button type="button" className="tc-sim-button tc-sim-primary" onClick={() => void run('baseline')} disabled={!activeTaskCount}><Play size={14} /> Rulează {config.iterations.toLocaleString('ro-RO')} simulări</button></div>}
           {visibleResult && <>
-            <section className="tc-sim-card tc-sim-outcome">
-              <div className="tc-sim-result-heading"><div><div className="tc-sim-eyebrow">DISTRIBUȚIA TERMINĂRII</div><h3>{visibleComparison ? 'Scenariu recalculat' : 'Timp până la ultima sarcină'}</h3><p>{visibleResult.iterations.toLocaleString('ro-RO')} rulări · seed {visibleResult.seed} · durată în zile lucrătoare echivalente</p></div><span className="tc-sim-result-stamp"><Check size={13} /> Calcul local</span></div>
-              {visibleComparison && <div className="tc-sim-comparison-banner"><div><small>Intervenție testată</small><strong>{describeSimulationIntervention(visibleComparison.intervention, workspace)}</strong></div><div><small>Șanse de terminare mai rapidă în model</small><strong>{formatPercent(visibleComparison.probabilityOfFasterFinish)}</strong></div><span>Pereche cu extrageri comune · seed {visibleComparison.baseline.seed} · config {visibleComparison.configFingerprint.slice(0, 12)}. Rezultat modelat, nu efect observat.</span></div>}
-              <QuantileCards quantiles={visibleResult.completionDays} dates={visibleResult.completionDates} comparison={visibleComparison} />
-              <DeadlineOutlook result={visibleResult} />
-              <Histogram result={visibleResult} />
-            </section>
+            {inspectedPath && <section className="tc-sim-card tc-sim-path-inspector-card" aria-label="Inspectorul traseului selectat">
+              <div className="tc-sim-card-heading"><div><div className="tc-sim-eyebrow">{hoveredPathId === inspectedPath.id ? 'PREVIZUALIZARE LA INDICARE' : 'TRASEU SELECTAT'}</div><h3>Rulare #{inspectedPath.iteration + 1} · {formatPercentile(inspectedPath.targetQuantile)}</h3><p>{visibleComparison ? `Intervenție testată · ${describeSimulationIntervention(visibleComparison.intervention, workspace)}` : 'Traseu din baseline-ul modelat'}</p></div></div>
+              <div className="tc-sim-path-facts"><div><span>Finalizare modelată</span><strong>{workingDateAtOffset(visibleResult.config.calendar, inspectedPath.completionDays)}</strong><small>{formatDays(inspectedPath.completionDays)} · zile lucrătoare echivalente</small></div><div><span>Grup de finalizare</span><strong>{familyDisplayName(inspectedPath.familyId)}</strong><small>{deadlineBucketLabel(inspectedPath.deadlineBucket)}</small></div></div>
+              {inspectedStage && <div className="tc-sim-inspected-stage"><span>Etapă selectată · {inspectedStage.kind === 'milestone' ? 'milestone' : 'sarcină'}</span><strong>{inspectedStage.title}</strong><small>Start · {formatDays(inspectedStage.startDays)} · {workingDateAtOffset(visibleResult.config.calendar, inspectedStage.startDays)}</small><small>Finalizare · {formatDays(inspectedStage.finishDays)} · {workingDateAtOffset(visibleResult.config.calendar, inspectedStage.finishDays)}</small></div>}
+              <details className="tc-sim-path-stages"><summary>Vezi etapele acestui traseu · {inspectedPath.tasks.length}</summary><PathTimeline path={inspectedPath} calendar={visibleResult.config.calendar} /></details>
+              <div className="tc-sim-path-provenance">Eșantion #{inspectedPath.iteration + 1} · {visibleResult.iterations.toLocaleString('ro-RO')} iterări · seed {visibleResult.seed} · {visibleComparison ? 'aceleași extrageri în pereche' : 'rulare baseline'}.</div>
+            </section>}
 
             <section className="tc-sim-card tc-sim-path-card">
-              <div className="tc-sim-card-heading"><div><h3>Ramuri din rezultate reale</h3><p>Familii și trasee selectate din distribuția celor {visibleResult.iterations.toLocaleString('ro-RO')} rulări, nu curbe decorative.</p></div><span className="tc-sim-count">{visibleResult.paths.length} trasee</span></div>
-              <div className="tc-sim-family-grid">{visibleResult.families.map((family) => {
-                const familyPaths = visibleResult.paths.filter((path) => path.familyId === family.id);
-                const representative = familyPaths.find((path) => path.targetQuantile === (family.id === 'shorter' ? 20 : family.id === 'central' ? 50 : 90)) || familyPaths[0];
-                return <button type="button" key={family.id} className={`tc-sim-family-card tc-sim-family-${family.id}${representative && selectedPath?.id === representative.id ? ' active' : ''}`} onClick={() => representative && setSelectedPathId(representative.id)} disabled={!representative}>
-                  <span>{family.label} · P{family.percentileRange[0]}–P{family.percentileRange[1]}</span><strong>{formatDays(family.completionDays.p50)} P50</strong><small>{family.sampleCount.toLocaleString('ro-RO')} rezultate reale · traseu exemplu {representative ? `#${representative.iteration + 1}` : 'indisponibil'}</small>
-                </button>;
-              })}</div>
-              <SampledBranchPlot stages={visibleResult.stages} paths={visibleResult.paths} selectedPathId={selectedPath?.id || null} onSelect={setSelectedPathId} />
-              {selectedPath && <PathTimeline path={selectedPath} calendar={visibleResult.config.calendar} />}
-              <div className="tc-sim-inline-note"><CircleHelp size={14} /><span>Sunt afișate până la 24 de rulări individuale păstrate. Banda P10–P90 folosește distribuțiile calculate pentru fiecare etapă din toate simulările. Culorile arată familii empirice sau găleți de termen, nu cauze.</span></div>
+              <div className="tc-sim-card-heading"><div><h3>Ramuri din rulările modelului</h3><p>{visibleComparison ? 'Eșantioanele intervenției; baseline-ul rămâne separat.' : 'Eșantioane ale rulărilor baseline.'} · {visibleResult.iterations.toLocaleString('ro-RO')} iterări</p></div><span className="tc-sim-count">{plottedPaths.length} trasee</span></div>
+              <div className="tc-sim-family-filter" role="group" aria-label="Filtru după rangul de finalizare"><span>Grupe după finalizare</span><button type="button" className={selectedFamily === 'all' ? 'active' : ''} aria-pressed={selectedFamily === 'all'} onClick={() => selectFamily('all')}>Toate <small>{visibleResult.iterations.toLocaleString('ro-RO')}</small></button>{visibleResult.families.map((family) => <button type="button" key={family.id} className={`${selectedFamily === family.id ? 'active ' : ''}family-${family.id}`} aria-pressed={selectedFamily === family.id} onClick={() => selectFamily(selectedFamily === family.id ? 'all' : family.id)}><span>{familyDisplayName(family.id)}</span><small>{family.sampleCount.toLocaleString('ro-RO')} · P50 {formatDays(family.completionDays.p50)}</small></button>)}</div>
+              <SampledBranchPlot stages={visibleResult.stages} paths={plottedPaths} selectedPathId={selectedPath?.id || null} hoveredPathId={hoveredPathId} selectedStageId={selectedStageFocus && selectedStageFocus.pathId === selectedPath?.id ? selectedStageFocus.taskId : null} calendar={visibleResult.config.calendar} onSelect={selectPath} onSelectStage={selectStage} onHover={setHoveredPathId} />
+              <div className="tc-sim-inline-note"><CircleHelp size={14} /><span>Etapele sunt pe orizontală. Rândurile grupează traseele după treimea empirică de finalizare; verticala este dispunere diagramatică, nu scară de timp și nu indică o cauză.</span></div>
             </section>
+
+            <details className="tc-sim-card tc-sim-outcome tc-sim-global-summary">
+              <summary><div><div className="tc-sim-eyebrow">REZUMAT GLOBAL · MODELAT</div><strong>P50 {visibleResult.completionDates.p50}</strong><span>{formatDays(visibleResult.completionDays.p50)} · {visibleResult.iterations.toLocaleString('ro-RO')} rulări · seed {visibleResult.seed}</span></div><ChevronDown size={16} /></summary>
+              <div className="tc-sim-global-summary-content">
+                {visibleComparison && <div className="tc-sim-comparison-banner"><div><small>Intervenție testată</small><strong>{describeSimulationIntervention(visibleComparison.intervention, workspace)}</strong></div><div><small>Mai rapidă în model</small><strong>{formatPercent(visibleComparison.probabilityOfFasterFinish)}</strong></div><span>Pereche cu extrageri comune · seed {visibleComparison.baseline.seed} · config {visibleComparison.configFingerprint.slice(0, 12)}. Rezultat modelat, nu efect observat.</span></div>}
+                <QuantileCards quantiles={visibleResult.completionDays} dates={visibleResult.completionDates} comparison={visibleComparison} />
+                <DeadlineOutlook result={visibleResult} />
+                <Histogram result={visibleResult} />
+              </div>
+            </details>
 
             {visibleComparison && <section className="tc-sim-card tc-sim-paired-card"><div className="tc-sim-card-heading"><div><h3>Comparație pereche</h3><p>Fiecare scenariu folosește extrageri aleatoare cu același seed.</p></div><ChevronRight size={16} /></div><div className="tc-sim-paired-values"><div><small>Baseline P50</small><strong>{formatDays(visibleComparison.baseline.completionDays.p50)}</strong></div><ChevronRight size={15} /><div><small>Scenariu P50</small><strong>{formatDays(visibleComparison.scenario.completionDays.p50)}</strong></div><div className={visibleComparison.completionDeltaDays.p50 < 0 ? 'tc-sim-delta-positive' : visibleComparison.completionDeltaDays.p50 > 0 ? 'tc-sim-delta-negative' : ''}><small>Diferență P50</small><strong>{formatDays(visibleComparison.completionDeltaDays.p50, true)}</strong></div></div><div className="tc-sim-inline-note"><Activity size={14} /><span>Diferența P10/P50/P80/P90: {formatDays(visibleComparison.completionDeltaDays.p10, true)} / {formatDays(visibleComparison.completionDeltaDays.p50, true)} / {formatDays(visibleComparison.completionDeltaDays.p80, true)} / {formatDays(visibleComparison.completionDeltaDays.p90, true)}. Valorile descriu modelul configurat, nu o promisiune.</span></div></section>}
 
-            <section className="tc-sim-card tc-sim-metrics-card">
-              <div className="tc-sim-card-heading"><div><h3>Proxy-uri și acoperire</h3><p>Indicatori calculați din sarcini, dependențe și intrările alese.</p></div><CircleHelp size={16} /></div>
+            <details className="tc-sim-card tc-sim-metrics-card">
+              <summary className="tc-sim-card-heading"><div><h3>Proxy-uri și acoperire</h3><p>Indicatori derivați din sarcini și dependențe.</p></div><CircleHelp size={16} /></summary>
               <div className="tc-sim-metrics-grid">
                 <Metric label="Sarcini simultane P50" value={visibleResult.metrics.maxParallelTasks.p50.toFixed(1)} detail="Proxy de context switching" />
                 <Metric label="Coada de capacitate P50" value={formatDays(visibleResult.metrics.capacityQueueDays.p50)} detail="Față de traseul critic modelat" />
@@ -366,12 +399,11 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
                 <strong>Ce lipsește sau rămâne ipoteză</strong>
                 <span>{visibleResult.missingness.placeholderEstimateTaskIds.length} durate neconfirmate · {visibleResult.missingness.unassignedTaskIds.length} sarcini fără owner legat · {visibleResult.missingness.placeholderCapacityMemberIds.length} capacități neconfirmate · {visibleResult.missingness.unresolvedDependencyTaskIds.length} sarcini cu dependențe nerezolvate</span>
               </div>
-            </section>
+            </details>
 
             <details className="tc-sim-model-notes"><summary>Formule și limite ale modelului</summary><ul>{visibleResult.notes.map((note, index) => <li key={index}>{note}</li>)}</ul></details>
           </>}
         </div>
-      </div>
       <div className="tc-sim-footer"><span>Rulări deterministe pe intrările salvate în acest browser.</span><span>{outputIsStale ? 'Ultimul rezultat este depășit' : output ? `Salvat automat · ${new Date(output.generatedAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}` : 'Niciun rezultat salvat încă'}</span></div>
     </section>
   );
@@ -417,71 +449,116 @@ function Histogram({ result }: { result: SimulationResult }) {
   </div><div className="tc-sim-histogram-axis"><span>zile de lucru</span><span>{result.iterations.toLocaleString('ro-RO')} rulări</span></div></div>;
 }
 
-function SampledBranchPlot({ stages, paths, selectedPathId, onSelect }: { stages: SimulationResult['stages']; paths: SimulationPath[]; selectedPathId: string | null; onSelect: (id: string) => void }) {
-  if (!stages.length || !paths.length) return <div className="tc-sim-branch-empty">Niciun traseu de sarcini disponibil pentru acest eșantion.</div>;
-  const width = 640;
-  const height = 205;
-  const padding = { top: 12, right: 15, bottom: 43, left: 45 };
-  const plotWidth = width - padding.left - padding.right;
+function SampledBranchPlot({ stages, paths, selectedPathId, hoveredPathId, selectedStageId, calendar, onSelect, onSelectStage, onHover }: { stages: SimulationResult['stages']; paths: SimulationPath[]; selectedPathId: string | null; hoveredPathId: string | null; selectedStageId: string | null; calendar: SimulationCalendar; onSelect: (id: string) => void; onSelectStage: (pathId: string, taskId: string) => void; onHover: (id: string | null) => void }) {
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panDrag = useRef<{ pointerId: number; clientX: number; clientY: number; viewX: number; viewY: number } | null>(null);
+  if (!stages.length || !paths.length) return <div className="tc-sim-branch-empty">Niciun traseu eșantionat disponibil pentru acest rezultat.</div>;
+  const width = 1180;
+  const height = 520;
+  const viewWidth = width / zoom;
+  const viewHeight = height / zoom;
+  const centerViewX = (width - viewWidth) / 2;
+  const centerViewY = (height - viewHeight) / 2;
+  const viewX = Math.max(0, Math.min(width - viewWidth, centerViewX + pan.x));
+  const viewY = Math.max(0, Math.min(height - viewHeight, centerViewY + pan.y));
+  const padding = { top: 46, right: 78, bottom: 62, left: 86 };
+  const originX = padding.left;
+  const resultX = width - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
-  const maxDays = Math.max(1, ...paths.flatMap((path) => path.tasks.map((task) => task.finishDays)), ...stages.map((stage) => stage.finishDays.p90));
-  const xAt = (index: number) => padding.left + (stages.length === 1 ? plotWidth / 2 : index / (stages.length - 1) * plotWidth);
-  const yAt = (days: number) => padding.top + plotHeight - days / maxDays * plotHeight;
+  const originY = padding.top + plotHeight / 2;
   const familyColors: Record<SimulationPath['familyId'], string> = { shorter: '#416bc0', central: '#2ea374', later: '#d08b3d' };
-  const deadlineColors = { on_time: '#42c999', late_up_to_7_days: '#e5aa42', late_more_than_7_days: '#ec716b' };
-  const colorFor = (path: SimulationPath) => path.deadlineBucket ? deadlineColors[path.deadlineBucket] : familyColors[path.familyId];
-  const ticks = [0, maxDays / 2, maxDays];
-  const stageLabels = [...new Set([0, Math.floor((stages.length - 1) / 2), stages.length - 1])];
-  const upperBand = stages.map((stage, index) => ({ x: xAt(index), y: yAt(stage.finishDays.p90) }));
-  const lowerBand = stages.map((stage, index) => ({ x: xAt(index), y: yAt(stage.finishDays.p10) }));
-  const bandPath = upperBand.length ? `${upperBand.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ')} ${[...lowerBand].reverse().map((point) => `L ${point.x} ${point.y}`).join(' ')} Z` : '';
-  const medianPath = stages.map((stage, index) => ({ x: xAt(index), y: yAt(stage.finishDays.p50) })).reduce((d, point, index, points) => {
-    if (index === 0) return `M ${point.x} ${point.y}`;
-    const previous = points[index - 1]; const middle = (previous.x + point.x) / 2;
-    return `${d} C ${middle} ${previous.y}, ${middle} ${point.y}, ${point.x} ${point.y}`;
-  }, '');
+  const familyOrder: SimulationPath['familyId'][] = ['shorter', 'central', 'later'];
+  const laneHeight = plotHeight / familyOrder.length;
+  const laneCenter = (id: SimulationPath['familyId']) => padding.top + (familyOrder.indexOf(id) + 0.5) * laneHeight;
+  const xAt = (index: number) => originX + ((index + 1) / (stages.length + 1)) * (resultX - originX);
+  const groupPosition = new Map<string, { rank: number; count: number }>();
+  for (const familyId of familyOrder) {
+    const group = paths.filter((path) => path.familyId === familyId).sort((a, b) => a.completionDays - b.completionDays || a.iteration - b.iteration);
+    group.forEach((path, rank) => groupPosition.set(path.id, { rank, count: group.length }));
+  }
+  const pathY = (path: SimulationPath) => {
+    const position = groupPosition.get(path.id) || { rank: 0, count: 1 };
+    const spread = Math.min(laneHeight * 0.66, Math.max(0, position.count - 1) * 9);
+    return laneCenter(path.familyId) + (position.count > 1 ? (position.rank / (position.count - 1) - 0.5) * spread : 0);
+  };
+  const colorFor = (path: SimulationPath) => familyColors[path.familyId];
+  const labelCount = Math.min(7, stages.length);
+  const labelIndices = Array.from({ length: labelCount }, (_, index) => Math.round(index * (stages.length - 1) / Math.max(1, labelCount - 1)));
+  const panBy = (dx: number, dy: number) => {
+    const nextX = Math.max(0, Math.min(width - viewWidth, viewX + dx * viewWidth));
+    const nextY = Math.max(0, Math.min(height - viewHeight, viewY + dy * viewHeight));
+    setPan({ x: nextX - centerViewX, y: nextY - centerViewY });
+  };
+  const beginPan = (event: PointerEventType<SVGSVGElement>) => {
+    if (zoom <= 1 || (event.target as Element).closest('.tc-sim-branch-hit, .tc-sim-branch-endpoint')) return;
+    panDrag.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, viewX, viewY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+  const movePan = (event: PointerEventType<SVGSVGElement>) => {
+    const drag = panDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const nextX = Math.max(0, Math.min(width - viewWidth, drag.viewX - (event.clientX - drag.clientX) * viewWidth / Math.max(1, bounds.width)));
+    const nextY = Math.max(0, Math.min(height - viewHeight, drag.viewY - (event.clientY - drag.clientY) * viewHeight / Math.max(1, bounds.height)));
+    setPan({ x: nextX - centerViewX, y: nextY - centerViewY });
+  };
+  const endPan = (event: PointerEventType<SVGSVGElement>) => {
+    if (panDrag.current?.pointerId !== event.pointerId) return;
+    panDrag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
 
   return <div className="tc-sim-branch-plot">
-    <div className="tc-sim-branch-legend">{paths.map((path) => <button type="button" key={path.id} className={selectedPathId === path.id ? 'active' : ''} aria-pressed={selectedPathId === path.id} onClick={() => onSelect(path.id)}><i style={{ backgroundColor: colorFor(path) }} /><span>#{path.iteration + 1} · P{path.targetQuantile}</span><strong>{formatDays(path.completionDays)}</strong></button>)}</div>
-    <div className="tc-sim-density-key"><i /> Intervalul agregat P10–P90, calculat din toate etapele simulării</div>
-    <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={`${paths.length} trasee reale și distribuții pe ${stages.length} etape`}>
-      <title>Fiecare linie este o rulare eșantionată, ordonată după percentila și familia de finalizare. Selectează o linie pentru detalii.</title>
-      {ticks.map((tick, index) => {
-        const y = yAt(tick);
-        return <g key={`${index}-${tick}`}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} className="tc-sim-branch-grid" /><text x={padding.left - 7} y={y + 3} textAnchor="end" className="tc-sim-branch-tick">{tick.toLocaleString('ro-RO', { maximumFractionDigits: 1 })}</text></g>;
-      })}
-      <line x1={padding.left} x2={padding.left} y1={padding.top} y2={height - padding.bottom} className="tc-sim-branch-axis" />
-      <line x1={padding.left} x2={width - padding.right} y1={height - padding.bottom} y2={height - padding.bottom} className="tc-sim-branch-axis" />
-      <path d={bandPath} className="tc-sim-branch-band" />
-      <path d={medianPath} className="tc-sim-branch-median" />
+    <details className="tc-sim-branch-legend-details"><summary>Trasee individuale · {paths.length} păstrate</summary><div className="tc-sim-branch-legend">{paths.map((path) => <button type="button" key={path.id} className={`${selectedPathId === path.id ? 'active' : ''}${hoveredPathId === path.id ? ' hovered' : ''}`} aria-pressed={selectedPathId === path.id} onClick={() => onSelect(path.id)} onMouseEnter={() => onHover(path.id)} onMouseLeave={() => onHover(null)} onFocus={() => onHover(path.id)} onBlur={() => onHover(null)}><i style={{ backgroundColor: colorFor(path) }} /><span>#{path.iteration + 1} · {formatPercentile(path.targetQuantile)}</span><strong>{formatDays(path.completionDays)}</strong></button>)}</div></details>
+    <div className="tc-sim-zoom-controls" role="group" aria-label="Zoom și deplasare pentru harta ramurilor"><span>Zoom {Math.round(zoom * 100)}%</span><button type="button" aria-label="Mărește harta" title="Mărește" onClick={() => setZoom((value) => Math.min(2.8, Number((value * 1.25).toFixed(2))))} disabled={zoom >= 2.8}>+</button><button type="button" aria-label="Micșorează harta" title="Micșorează" onClick={() => setZoom((value) => Math.max(1, Number((value / 1.25).toFixed(2))))} disabled={zoom <= 1}>−</button><span className="tc-sim-pan-label">Mută</span><button type="button" aria-label="Mută harta la stânga" title="Mută la stânga" onClick={() => panBy(-.16, 0)} disabled={zoom <= 1 || viewX <= 0}>←</button><button type="button" aria-label="Mută harta în sus" title="Mută în sus" onClick={() => panBy(0, -.16)} disabled={zoom <= 1 || viewY <= 0}>↑</button><button type="button" aria-label="Mută harta în jos" title="Mută în jos" onClick={() => panBy(0, .16)} disabled={zoom <= 1 || viewY >= height - viewHeight}>↓</button><button type="button" aria-label="Mută harta la dreapta" title="Mută la dreapta" onClick={() => panBy(.16, 0)} disabled={zoom <= 1 || viewX >= width - viewWidth}>→</button><button type="button" aria-label="Resetează zoom-ul și deplasarea" title="Resetează zoom-ul și deplasarea" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} disabled={zoom === 1 && pan.x === 0 && pan.y === 0}>Resetare</button></div>
+    <svg viewBox={`${viewX} ${viewY} ${viewWidth} ${viewHeight}`} role="group" aria-label={`${paths.length} trasee eșantionate prin ${stages.length} etape de lucru`} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} style={{ cursor: zoom > 1 ? 'grab' : 'default', touchAction: zoom > 1 ? 'none' : 'auto' }}>
+      <title>Trasee simulate dintr-un punct de pornire comun. Pozițiile verticale grupează rulările după treimea finalizării și nu reprezintă timp.</title>
+      {familyOrder.map((familyId, index) => <rect key={familyId} x={originX} y={padding.top + index * laneHeight + 4} width={resultX - originX} height={laneHeight - 8} rx="9" className={`tc-sim-branch-lane family-${familyId}`} />)}
+      {stages.map((stage, index) => <g key={stage.id}><line x1={xAt(index)} x2={xAt(index)} y1={padding.top} y2={height - padding.bottom + 8} className="tc-sim-branch-stage-guide" /><circle cx={xAt(index)} cy={height - padding.bottom + 8} r="3" className="tc-sim-branch-stage-dot" /></g>)}
+      <line x1={originX} x2={resultX} y1={height - padding.bottom + 8} y2={height - padding.bottom + 8} className="tc-sim-branch-axis" />
+      <circle cx={originX} cy={originY} r="8" fill="#fff" stroke="#3b4e64" strokeWidth="2" className="tc-sim-branch-origin" />
+      <text x={originX} y={originY - 17} textAnchor="middle" className="tc-sim-branch-origin-label">Start</text>
       {paths.map((path) => {
-        const points = stages.map((stage, index) => {
+        const targetY = pathY(path);
+        const pathPoints = stages.flatMap((stage, index) => {
           const point = path.tasks.find((item) => item.id === stage.id);
-          return point ? { x: xAt(index), y: yAt(point.finishDays), point } : null;
-        }).filter((point): point is { x: number; y: number; point: SimulationPath['tasks'][number] } => point !== null);
-        const curve = points.length ? points.reduce((d, point, index) => {
+          if (!point) return [];
+          const progress = (index + 1) / stages.length;
+          const laneOffset = targetY - originY;
+          return [{ x: xAt(index), y: originY + laneOffset * progress, point }];
+        });
+        const points = [{ x: originX, y: originY, point: null as SimulationPath['tasks'][number] | null }, ...pathPoints, { x: resultX, y: targetY, point: null as SimulationPath['tasks'][number] | null }];
+        const curve = points.reduce((d, point, index) => {
           if (index === 0) return `M ${point.x} ${point.y}`;
           const previous = points[index - 1];
           const middle = (previous.x + point.x) / 2;
           return `${d} C ${middle} ${previous.y}, ${middle} ${point.y}, ${point.x} ${point.y}`;
-        }, '') : '';
+        }, '');
         const selected = selectedPathId === path.id;
+        const active = selected || hoveredPathId === path.id;
         const color = colorFor(path);
-        return <g key={path.id} className={selected ? 'tc-sim-branch-selected' : ''}>
-          <path d={curve} className="tc-sim-branch-hit" tabIndex={0} role="button" aria-label={`Selectează rularea ${path.iteration + 1}, P${path.targetQuantile}, terminare ${formatDays(path.completionDays)}`} aria-pressed={selected} onClick={() => onSelect(path.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(path.id); } }} />
-          <path d={curve} className="tc-sim-branch-line" style={{ stroke: color, strokeWidth: selected ? 3 : 1.25, opacity: selected ? .98 : .26 }} />
-          {points.map(({ x, y, point }) => <circle key={point.id} cx={x} cy={y} r={selected ? 2.6 : 1.3} fill={color} opacity={selected ? 1 : .34}><title>{point.title} · {formatDays(point.finishDays)}</title></circle>)}
+        return <g key={path.id} className={active ? 'tc-sim-branch-selected' : ''} onMouseEnter={() => onHover(path.id)} onMouseLeave={() => onHover(null)}>
+          <path d={curve} className="tc-sim-branch-hit" tabIndex={0} role="button" aria-label={`Selectează rularea ${path.iteration + 1}, ${formatPercentile(path.targetQuantile)}, terminare ${formatDays(path.completionDays)}, ${workingDateAtOffset(calendar, path.completionDays)}`} aria-pressed={selected} onFocus={() => onHover(path.id)} onBlur={() => onHover(null)} onClick={() => onSelect(path.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(path.id); } }} />
+          <path d={curve} className="tc-sim-branch-line" style={{ stroke: color, strokeWidth: active ? 2.8 : 1.35, opacity: active ? .98 : .35 }} />
+          {pathPoints.map(({ x, y, point }) => {
+            const stageSelected = selected && selectedStageId === point.id;
+            return <circle key={point.id} className="tc-sim-branch-task-node" cx={x} cy={y} r={stageSelected ? 6 : active ? 4 : 2.6} fill={color} stroke={stageSelected ? '#243b55' : '#fff'} strokeWidth={stageSelected ? 2.5 : 1.2} opacity={active || stageSelected ? 1 : .68} tabIndex={0} role="button" aria-label={`Selectează ${point.kind === 'milestone' ? 'milestone' : 'sarcina'} ${point.title}. Start ${formatDays(point.startDays)}. Finalizare ${formatDays(point.finishDays)}.`} aria-pressed={stageSelected} onClick={(event) => { event.stopPropagation(); onSelectStage(path.id, point.id); }} onFocus={() => onHover(path.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onSelectStage(path.id, point.id); } }}><title>{point.title} · start {formatDays(point.startDays)} · finalizare {formatDays(point.finishDays)} · {workingDateAtOffset(calendar, point.finishDays)}</title></circle>;
+          })}
+          <circle className="tc-sim-branch-endpoint" cx={resultX} cy={targetY} r={active ? 5.5 : 3.8} fill={color} stroke="#fff" strokeWidth="1.5" tabIndex={0} role="button" aria-label={`Selectează capătul rulării ${path.iteration + 1}, ${formatPercentile(path.targetQuantile)}, terminare ${formatDays(path.completionDays)}`} aria-pressed={selected} onClick={() => onSelect(path.id)} onFocus={() => onHover(path.id)} onBlur={() => onHover(null)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(path.id); } }}><title>Rulare #{path.iteration + 1} · {formatPercentile(path.targetQuantile)} · finalizare {formatDays(path.completionDays)} · {workingDateAtOffset(calendar, path.completionDays)}</title></circle>
         </g>;
       })}
-      {stageLabels.map((index) => <text key={index} x={xAt(index)} y={height - 22} textAnchor={index === 0 ? 'start' : index === stages.length - 1 ? 'end' : 'middle'} className="tc-sim-branch-stage" aria-label={stages[index].title}>{truncate(stages[index].title, 21)}</text>)}
+      {labelIndices.map((index) => <text key={stages[index].id} x={xAt(index)} y={height - 22} textAnchor="middle" className="tc-sim-branch-stage" aria-label={stages[index].title}><title>{stages[index].title}</title>{truncate(stages[index].title, 18)}</text>)}
+      <text x={resultX} y={height - padding.bottom + 28} textAnchor="end" className="tc-sim-branch-result-label">Rezultat</text>
     </svg>
-    <div className="tc-sim-branch-axis-labels"><span>Zile lucrătoare de la ziua 0</span><span>Sarcini și milestone-uri · ordinea dependențelor</span></div>
+    <div className="tc-sim-branch-axis-labels"><span>Start comun</span><span>Etape de sarcină · ordine de dependențe</span><span>Finalizare eșantionată</span></div>
   </div>;
 }
 
 function PathTimeline({ path, calendar }: { path: SimulationPath; calendar: SimulationCalendar }) {
   const scale = Math.max(path.completionDays, 0.5);
-  return <div className="tc-sim-timeline"><div className="tc-sim-timeline-head"><strong>Rulare #{path.iteration + 1}</strong><span>P{path.targetQuantile} · {formatDays(path.completionDays)} · {workingDateAtOffset(calendar, path.completionDays)}</span></div>{path.tasks.map((task) => {
+  return <div className="tc-sim-timeline"><div className="tc-sim-timeline-head"><strong>Etapele traseului</strong><span>Rulare #{path.iteration + 1} · {formatPercentile(path.targetQuantile)} · {formatDays(path.completionDays)} · {workingDateAtOffset(calendar, path.completionDays)}</span></div>{path.tasks.map((task) => {
     const left = Math.min(99, Math.max(0, task.startDays / scale * 100));
     const width = task.durationDays <= 0 ? 1.6 : Math.max(1.6, Math.min(100 - left, task.durationDays / scale * 100));
     return <div className="tc-sim-timeline-row" key={task.id}><span className={task.kind === 'milestone' ? 'tc-sim-timeline-title tc-sim-milestone-label' : 'tc-sim-timeline-title'} title={task.title}>{task.kind === 'milestone' ? '◆ ' : ''}{task.title}</span><div className="tc-sim-timeline-track"><div className={task.kind === 'milestone' ? 'tc-sim-timeline-bar tc-sim-milestone' : 'tc-sim-timeline-bar'} style={{ left: `${left}%`, width: `${width}%` }} title={`${task.title} · ${formatDays(task.startDays)}–${formatDays(task.finishDays)}`}><span /></div></div><small title={workingDateAtOffset(calendar, task.finishDays)}>{workingDateAtOffset(calendar, task.finishDays)}</small></div>;
@@ -567,7 +644,20 @@ function formatDays(value: number, signed = false): string {
   return `${signed && rounded > 0 ? '+' : ''}${rounded.toLocaleString('ro-RO', { maximumFractionDigits: 1 })} zile`;
 }
 
-function formatPercent(value: number): string { return `${Math.round(value * 100)}%`; }
+function formatPercent(value: number): string { return `${(Math.round(value * 1000) / 10).toLocaleString('ro-RO', { maximumFractionDigits: 1 })}%`; }
+
+function formatPercentile(value: number): string { return `P${Number.isInteger(value) ? value : value.toFixed(1)}`; }
+
+function familyDisplayName(id: SimulationPath['familyId']): string {
+  return id === 'shorter' ? 'Mai devreme' : id === 'central' ? 'Interval central' : 'Mai târziu';
+}
+
+function deadlineBucketLabel(bucket: SimulationPath['deadlineBucket']): string {
+  if (bucket === 'on_time') return 'la termen sau mai devreme';
+  if (bucket === 'late_up_to_7_days') return '1–7 zile calendaristice după termen';
+  if (bucket === 'late_more_than_7_days') return 'peste 7 zile calendaristice după termen';
+  return 'termen neconfigurat';
+}
 
 function initials(value: string): string {
   return value.split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toLocaleUpperCase();
