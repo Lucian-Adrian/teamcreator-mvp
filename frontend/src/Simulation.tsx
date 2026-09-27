@@ -1,5 +1,5 @@
 import SampledBranchPlot from './SampledBranchMap';
-import { useEffect, useRef, useState, type ChangeEvent, type PointerEvent as PointerEventType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as PointerEventType } from 'react';
 import { Activity, AlertCircle, CalendarDays, GitBranch, Check, ChevronDown, ChevronRight, CircleHelp, LoaderCircle, Minus, Play, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import {
   compareSimulation,
@@ -63,7 +63,6 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
   const [validationDetails, setValidationDetails] = useState<string[]>([]);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [selectedFamily, setSelectedFamily] = useState<SimulationPath['familyId'] | 'all'>('all');
-  const [hoveredPathId, setHoveredPathId] = useState<string | null>(null);
   const [selectedStageFocus, setSelectedStageFocus] = useState<{ pathId: string; taskId: string } | null>(null);
   const [interventionMode, setInterventionMode] = useState<InterventionMode>(initialIntervention?.kind || 'duration_shift');
   const [interventionTaskId, setInterventionTaskId] = useState(initialIntervention?.kind === 'duration_shift' ? initialIntervention.taskId : workspace.tasks[0]?.id || '');
@@ -86,7 +85,7 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
 
   const tasks = workspace.tasks;
   const members = workspace.members;
-  const workspaceModelKey = simulationWorkspaceInputKey(workspace);
+  const workspaceModelKey = useMemo(() => simulationWorkspaceInputKey(workspace), [workspace]);
   const currentResult = output?.kind === 'simulation_comparison' ? output.scenario : output;
   const currentComparison = output?.kind === 'simulation_comparison' ? output : null;
   const outputIsStale = Boolean(output && (!currentFingerprints
@@ -116,7 +115,6 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
     }
     setSelectedPathId(null);
     setSelectedFamily('all');
-    setHoveredPathId(null);
     setSelectedStageFocus(null);
     setInterventionTaskId(workspace.tasks[0]?.id || '');
     setInterventionMemberId(workspace.members[0]?.id || '');
@@ -207,7 +205,6 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
       setOutput(result);
       setSelectedPathId(null);
       setSelectedFamily('all');
-      setHoveredPathId(null);
       setSelectedStageFocus(null);
     } catch (reason) {
       if (reason instanceof Error && reason.name === 'AbortError') return;
@@ -223,12 +220,11 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
     }
   };
 
-  const selectPath = (id: string) => { setSelectedPathId(id); setHoveredPathId(null); setSelectedStageFocus(null); };
-  const selectStage = (pathId: string, taskId: string) => { setSelectedPathId(pathId); setHoveredPathId(null); setSelectedStageFocus({ pathId, taskId }); };
+  const selectPath = (id: string) => { setSelectedPathId(id); setSelectedStageFocus(null); };
+  const selectStage = (pathId: string, taskId: string) => { setSelectedPathId(pathId); setSelectedStageFocus({ pathId, taskId }); };
 
   const selectFamily = (familyId: SimulationPath['familyId'] | 'all') => {
     setSelectedFamily(familyId);
-    setHoveredPathId(null);
     setSelectedStageFocus(null);
     if (!visibleResult) return;
     const paths = visibleResult.paths.filter((path) => familyId === 'all' || path.familyId === familyId);
@@ -290,8 +286,8 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
           {(!output || outputIsStale) && !running && <div className="tc-sim-result-empty"><span className="tc-sim-empty-icon"><Activity size={23} /></span><h3>{outputIsStale ? 'Recalculează simularea' : 'Rezultatele apar aici'}</h3><p>Configurează intervalele și capacitatea, apoi rulează simularea pentru a vedea distribuția și traseele eșantionate.</p><button type="button" className="tc-sim-button tc-sim-primary" onClick={() => void run('baseline')} disabled={!activeTaskCount}><Play size={14} /> Rulează {config.iterations.toLocaleString('ro-RO')} simulări</button></div>}
           {visibleResult && <>
             {!inspectedPath && <aside className="tc-sim-card tc-sim-path-inspector-card tc-sim-click-prompt"><span className="tc-sim-prompt-mark"><GitBranch size={26} /></span><h3>Alege o ramură</h3><p>Vezi când se încheie proiectul și ce se întâmplă pe parcurs.</p><div><small>Estimare centrală</small><strong>{formatCalendarDate(visibleResult.completionDates.p50)}</strong></div><small>Poți selecta și un punct pentru detaliile sarcinii.</small></aside>}
-            {inspectedPath && <section className="tc-sim-card tc-sim-path-inspector-card" aria-label="Inspectorul traseului selectat">
-              <div className="tc-sim-card-heading"><div><div className="tc-sim-eyebrow">{'Scenariu selectat'}</div><h3>{familyDisplayName(inspectedPath.familyId)}</h3><p>{visibleComparison ? `Intervenție testată · ${describeSimulationIntervention(visibleComparison.intervention, workspace)}` : 'Evoluție posibilă a planului actual'}</p></div><button type="button" className="tc-sim-inspector-close" aria-label="Închide scenariul" onClick={() => { setSelectedPathId(null); setSelectedStageFocus(null); setHoveredPathId(null); }}><X size={17} /></button></div>
+            {inspectedPath && <section key={inspectedPath.id} className="tc-sim-card tc-sim-path-inspector-card is-selected" data-family={inspectedPath.familyId} aria-label="Inspectorul traseului selectat">
+              <div className="tc-sim-card-heading"><div><div className="tc-sim-eyebrow">{'Scenariu selectat'}</div><h3>{familyDisplayName(inspectedPath.familyId)}</h3><p>{visibleComparison ? `Intervenție testată · ${describeSimulationIntervention(visibleComparison.intervention, workspace)}` : 'Evoluție posibilă a planului actual'}</p></div><button type="button" className="tc-sim-inspector-close" aria-label="Închide scenariul" onClick={() => { setSelectedPathId(null); setSelectedStageFocus(null); }}><X size={17} /></button></div>
               <div className="tc-sim-path-facts"><div><span>Finalizare modelată</span><strong>{formatCalendarDate(workingDateAtOffset(visibleResult.config.calendar, inspectedPath.completionDays))}</strong><small>{formatDays(inspectedPath.completionDays)} · zile lucrătoare echivalente</small></div><div><span>Grup de finalizare</span><strong>{familyDisplayName(inspectedPath.familyId)}</strong><small>{deadlineBucketLabel(inspectedPath.deadlineBucket)}</small></div></div>
               {inspectedStage && <div className="tc-sim-inspected-stage"><span>Etapă selectată · {inspectedStage.kind === 'milestone' ? 'milestone' : 'sarcină'}</span><strong>{inspectedStage.title}</strong><small>Start · {formatDays(inspectedStage.startDays)} · {workingDateAtOffset(visibleResult.config.calendar, inspectedStage.startDays)}</small><small>Finalizare · {formatDays(inspectedStage.finishDays)} · {workingDateAtOffset(visibleResult.config.calendar, inspectedStage.finishDays)}</small></div>}
               <details className="tc-sim-path-stages"><summary>Vezi etapele acestui traseu · {inspectedPath.tasks.length}</summary><PathTimeline path={inspectedPath} calendar={visibleResult.config.calendar} /></details>
@@ -299,8 +295,8 @@ export default function Simulation({ workspace, onResult, initialIntervention, a
             </section>}
 
             <section className="tc-sim-card tc-sim-path-card">
-              <div className="tc-sim-map-label">{visibleComparison ? 'Scenariu cu intervenție' : 'Planul actual'}<span>{plottedPaths.length} trasee reale din simulare</span></div>
-              <SampledBranchPlot stages={visibleResult.stages} paths={plottedPaths} selectedPathId={selectedPath?.id || null} hoveredPathId={hoveredPathId} selectedStageId={selectedStageFocus && selectedStageFocus.pathId === selectedPath?.id ? selectedStageFocus.taskId : null} calendar={visibleResult.config.calendar} onSelect={selectPath} onSelectStage={selectStage} onHover={setHoveredPathId} />
+              <div className="tc-sim-map-label">{visibleComparison ? 'Scenariu cu intervenție' : 'Planul actual'}<span>{plottedPaths.length} trasee din simulare</span></div>
+              <SampledBranchPlot key={visibleResult.generatedAt} stages={visibleResult.stages} paths={plottedPaths} selectedPathId={selectedPath?.id || null} selectedStageId={selectedStageFocus && selectedStageFocus.pathId === selectedPath?.id ? selectedStageFocus.taskId : null} calendar={visibleResult.config.calendar} onSelect={selectPath} onSelectStage={selectStage} />
               <div className="tc-sim-map-caption">Etape de proiect · ramuri grupate după finalizare <span title="Forma ramurilor este o dispunere vizuală calculată din timpii rulărilor. Poziția verticală nu este o scară de timp sau o cauză a întârzierii.">ⓘ</span></div>
             </section>
 
@@ -573,3 +569,4 @@ function truncate(value: string, maxLength: number): string {
 }
 
 function formatCalendarDate(date: string) { return new Date(date + "T12:00:00").toLocaleDateString("ro-RO", { day: "numeric", month: "short", year: "numeric" }); }
+

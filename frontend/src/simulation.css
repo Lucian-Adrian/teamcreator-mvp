@@ -164,7 +164,7 @@
 .tc-sim-branch-legend i { width: 12px; height: 3px; flex: 0 0 auto; border-radius: 4px; }
 .tc-sim-branch-legend span { font-size: 8px; }
 .tc-sim-branch-legend strong { color: #53657c; font-size: 8px; font-weight: 700; }
-.tc-sim-branch-plot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tc-sim-branch-plot > svg { display: block; width: 100%; height: auto; overflow: visible; }
 .tc-sim-branch-grid { stroke: #edf1f5; stroke-dasharray: 3 4; stroke-width: 1; }
 .tc-sim-branch-axis { stroke: #ccd5df; stroke-width: 1; }
 .tc-sim-branch-tick { fill: #8c98a7; font: 8px 'DM Sans', sans-serif; }
@@ -335,7 +335,7 @@
 .tc-sim-branch-axis { stroke: #aebbc8; stroke-width: 1.1; }
 .tc-sim-branch-stage { fill: #52677f; font-size: 12px; }
 .tc-sim-branch-result-label, .tc-sim-branch-origin-label { fill: #344b65; font-size: 13px; font-weight: 650; }
-.tc-sim-branch-plot svg { display: block; width: 100%; height: auto; min-height: 390px; overflow: hidden; }
+.tc-sim-branch-plot > svg { display: block; width: 100%; height: auto; min-height: 390px; overflow: hidden; }
 .tc-sim-branch-axis-labels { display: flex; justify-content: space-between; gap: 10px; color: #74869b; font-size: 12px; }
 .tc-sim-branch-axis-labels span:nth-child(2) { text-align: center; }
 .tc-sim-timeline-row { grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 88px; }
@@ -425,7 +425,7 @@
   .tc-sim-controls > details, .tc-sim-controls > details.tc-sim-advanced[open] { grid-column: 1; }
   .tc-sim-branch-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tc-sim-family-filter button { flex: 1 1 44%; min-width: 0; }
-  .tc-sim-branch-plot svg { min-height: 250px; }
+  .tc-sim-branch-plot > svg { min-height: 250px; }
   .tc-sim-branch-axis-labels { font-size: 10px; }
   .tc-sim-zoom-controls { justify-content: flex-start; flex-wrap: wrap; }
   .tc-sim-timeline-row { grid-template-columns: minmax(95px, 135px) minmax(0, 1fr) 80px; }
@@ -445,7 +445,7 @@
 .tc-sim-map-label {display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#465b72;padding:8px 0; }
 .tc-sim-map-label span {font-size:12px;color:#8492a3; }
 .tc-sim-organic-map {border:0;border-radius:0;padding:0;background:#fff;position:relative; }
-.tc-sim-organic-map svg {width:100%;height:auto;min-height:420px;max-height:none;display:block;border:0;background:#fff; }
+.tc-sim-organic-map > svg {width:100%;height:auto;min-height:420px;max-height:none;display:block;border:0;background:#fff; }
 .tc-sim-family-map-label text {font-size:16px;font-weight:560; }
 .tc-sim-origin-label {font-size:13px;fill:#516174; }
 .tc-sim-map-tools {display:flex;align-items:center;gap:5px;padding:10px 0 0;font-size:11px;color:#79889a; }
@@ -483,7 +483,7 @@
 }
 @media(max-width:650px){
 .tc-sim-heading {align-items:flex-start;gap:12px;}.tc-sim-heading h2{font-size:23px;}.tc-sim-heading p{font-size:12px;max-width:220px;}.tc-sim-heading-actions button{font-size:12px;padding:8px;white-space:nowrap;}
-.tc-sim-organic-map svg{min-height:240px;}.tc-sim-map-label span{font-size:10px;}.tc-sim-map-tools small{display:none;}.tc-sim-workbench > summary small{display:none;}.tc-sim-secondary-settings{margin:0 8px 8px;}
+.tc-sim-organic-map > svg{min-height:240px;}.tc-sim-map-label span{font-size:10px;}.tc-sim-map-tools small{display:none;}.tc-sim-workbench > summary small{display:none;}.tc-sim-secondary-settings{margin:0 8px 8px;}
 }
 .tc-sim-inspector-close{align-self:flex-start;border:0;background:transparent;color:#7c8b9b;padding:4px;cursor:pointer}.tc-sim-path-inspector-card .tc-sim-card-heading{align-items:flex-start}
 
@@ -503,7 +503,7 @@
   .tc-sim-map-label { align-items: flex-start; flex-wrap: wrap; gap: 3px 10px; font-size: 14px; }
   .tc-sim-map-label span { font-size: 12px; }
   .tc-sim-organic-map { overflow: hidden; padding: 7px; border: 1px solid #e5ebf2; border-radius: 12px; background: linear-gradient(180deg, #fbfcff, #fff 80%); }
-  .tc-sim-organic-map svg { width: 100%; height: auto; min-height: 236px; max-height: none; }
+  .tc-sim-organic-map > svg { width: 100%; height: auto; min-height: 236px; max-height: none; }
   .tc-sim-organic-map.is-compact .tc-sim-branch-hit { stroke-width: 24px; }
   .tc-sim-organic-map.is-compact .tc-sim-branch-line { vector-effect: non-scaling-stroke; }
   .tc-sim-organic-map.is-compact .tc-sim-origin-label { font-size: 20px; }
@@ -540,4 +540,83 @@
   .tc-simulation .tc-sim-progress-track > span,
   .tc-simulation .tc-sim-organic-map *,
   .tc-simulation .tc-sim-map-tools * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+/* Finite drawing motion; hover and selection keep the same SVG path elements. */
+.tc-sim-organic-map { border: 1px solid #e5ebf1; border-radius: 16px; padding: 12px 14px 0; overflow: hidden; background: #fff; }
+.tc-sim-organic-map > svg { background: transparent; }
+.tc-sim-organic-map > svg:focus,
+.tc-sim-organic-map [role="button"]:focus { outline: none; }
+.tc-sim-organic-map .tc-sim-branch-hit:focus-visible { outline: none; filter: none; }
+.tc-sim-organic-map .tc-sim-branch-hit:focus-visible + .tc-sim-branch-line { stroke-width: 4 !important; filter: drop-shadow(0 0 2px #3976c570); }
+.tc-sim-organic-map .tc-sim-stage-node:focus-visible,
+.tc-sim-organic-map .tc-sim-branch-endpoint:focus-visible { outline: none; stroke: #224d85; stroke-width: 3; filter: drop-shadow(0 0 3px #3976c570); }
+.tc-sim-stage-guides { pointer-events: none; }
+.tc-sim-stage-guides line { stroke: #eaf0f5; stroke-width: 1; stroke-dasharray: 2 7; }
+.tc-sim-route-halo { fill: none; stroke-width: 10; stroke-linecap: round; pointer-events: none; transition: opacity 160ms ease; }
+.tc-sim-trace { stroke-dasharray: 1 1; stroke-dashoffset: 0; animation: tc-sim-draw 1150ms cubic-bezier(.25,.6,.32,1) var(--trace-delay,0ms) backwards; transition: opacity 160ms ease, stroke-width 160ms ease; }
+.tc-sim-route > .tc-sim-branch-endpoint { animation: tc-sim-endpoint-in 220ms ease calc(var(--trace-delay,0ms) + 1050ms) backwards; transition: fill 150ms ease, r 150ms ease; }
+.tc-sim-route > .tc-sim-stage-node { transition: r 150ms ease; }
+.tc-sim-origin circle { pointer-events: none; }
+.tc-sim-map-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #edf1f5; }
+.tc-sim-map-selection { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 7px; color: #778b9c; font-size: 11px; line-height: 1.5; }
+.tc-sim-map-selection > i { width: 6px; height: 6px; border-radius: 50%; }
+.tc-sim-map-selection > span { color: #a0acb8; }
+.tc-sim-map-bottom .tc-sim-map-tools { display: flex; align-items: center; padding: 0; flex: 0 0 auto; gap: 3px; }
+.tc-sim-map-bottom .tc-sim-map-tools button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-color: transparent; border-radius: 7px; height: 32px; min-width: 32px; color: #5d7388; background: #fff; transition: background 150ms, color 150ms, transform 150ms; }
+.tc-sim-map-bottom .tc-sim-map-tools button:hover:not(:disabled) { border-color: #e2eaf2; background: #f3f7fc; color: #3267a7; }
+.tc-sim-map-bottom .tc-sim-map-tools button:active:not(:disabled) { transform: scale(.94); }
+.tc-sim-map-bottom .tc-sim-map-tools .tc-sim-replay { margin-left: 6px; padding-inline: 10px; border-left-color: #e6edf3; border-radius: 0 7px 7px 0; font-size: 11px; }
+.tc-sim-map-bottom .tc-sim-map-tools span { min-width: 38px; padding: 0 3px; font-variant-numeric: tabular-nums; text-align: center; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-path-inspector-card { margin-top: 36px; padding: 22px; border: 1px solid #e5ebf1; border-radius: 16px; background: #fbfcfd; box-shadow: 0 5px 22px #1d3d5f04; }
+.tc-sim-results.has-output:not(.is-running) > .tc-sim-path-inspector-card.is-selected { background: #fff; animation: tc-sim-inspector-in 180ms ease-out; }
+.tc-sim-path-inspector-card[data-family="shorter"] { --selected-family: #527fbe; }
+.tc-sim-path-inspector-card[data-family="central"] { --selected-family: #289b84; }
+.tc-sim-path-inspector-card[data-family="later"] { --selected-family: #c78170; }
+.tc-sim-path-inspector-card.is-selected .tc-sim-eyebrow { gap: 6px; letter-spacing: .02em; color: var(--selected-family); }
+.tc-sim-path-inspector-card.is-selected .tc-sim-eyebrow::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.tc-sim-path-inspector-card.is-selected .tc-sim-card-heading h3 { margin-top: 9px; font-size: 20px; line-height: 1.25; font-weight: 600; }
+.tc-sim-path-inspector-card .tc-sim-inspector-close { width: 28px; height: 28px; border-radius: 6px; transition: color 150ms, background 150ms; }
+.tc-sim-path-inspector-card .tc-sim-inspector-close:hover { color: #2d609e; background: #edf3fa; }
+.tc-sim-path-facts strong { font-variant-numeric: tabular-nums; letter-spacing: -.45px; }
+.tc-sim-path-stages > summary { padding-block: 13px; color: #4c667f; cursor: pointer; }
+.tc-sim-map-label { padding: 5px 2px 12px; color: #36516b; font-size: 13px; font-weight: 550; }
+.tc-sim-map-label > span { color: #8796a7; font-size: 11px; font-weight: 400; }
+.tc-sim-map-caption { padding-left: 2px; line-height: 1.5; }
+.tc-sim-click-prompt h3 { font-size: 19px; font-weight: 600; letter-spacing: -.3px; }
+.tc-sim-click-prompt .tc-sim-prompt-mark { width: 42px; height: 42px; border: 1px solid #e4ecf4; border-radius: 12px; background: #f4f8fc; color: #6085a7; }
+@keyframes tc-sim-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes tc-sim-endpoint-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tc-sim-inspector-in { from { opacity: .35; transform: translateX(5px); } to { opacity: 1; transform: translateX(0); } }
+@media (max-width: 1100px) {
+  .tc-sim-map-bottom { flex-wrap: wrap; gap: 8px; }
+  .tc-sim-map-bottom .tc-sim-map-tools { margin-left: auto; }
+}
+@media (max-width: 900px) {
+  .tc-sim-results.has-output:not(.is-running) > .tc-sim-path-inspector-card { margin-top: 0; }
+}
+@media (max-width: 650px) {
+  .tc-sim-organic-map { padding: 8px 8px 0; border-radius: 14px; }
+  .tc-sim-map-bottom { padding: 9px 0; }
+  .tc-sim-map-selection { font-size: 10px; }
+  .tc-sim-map-bottom .tc-sim-map-tools { width: 100%; justify-content: flex-start; margin: 0; }
+  .tc-sim-map-bottom .tc-sim-map-tools button { height: 40px; min-width: 38px; }
+  .tc-sim-map-bottom .tc-sim-map-tools .tc-sim-replay { margin-left: auto; font-size: 11px; }
+  .tc-sim-results.has-output:not(.is-running) > .tc-sim-path-inspector-card { padding: 17px; border-radius: 14px; }
+  .tc-sim-mobile-family-legend > span { font-size: 11px; }
+  .tc-sim-route-halo { stroke-width: 12; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tc-simulation .tc-sim-trace { animation: none !important; stroke-dashoffset: 0; }
+  .tc-simulation .tc-sim-route > .tc-sim-branch-endpoint,
+  .tc-simulation .tc-sim-route > .tc-sim-stage-node,
+  .tc-simulation .tc-sim-route-halo,
+  .tc-simulation .tc-sim-path-inspector-card,
+  .tc-simulation .tc-sim-map-tools button { animation: none !important; transition: none !important; }
+}
+
+/* A deliberate Play action opts into one drawing pass, including with reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .tc-simulation .tc-sim-organic-map[data-manual-replay="true"] .tc-sim-trace { animation: tc-sim-draw 1150ms cubic-bezier(.25,.6,.32,1) var(--trace-delay,0ms) backwards !important; }
+  .tc-simulation .tc-sim-organic-map[data-manual-replay="true"] .tc-sim-route > .tc-sim-branch-endpoint { animation: tc-sim-endpoint-in 220ms ease calc(var(--trace-delay,0ms) + 1050ms) backwards !important; }
 }
