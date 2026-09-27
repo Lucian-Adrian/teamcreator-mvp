@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertCircle, AlertTriangle, ArrowDown, ArrowRight, ArrowUpRight, CalendarDays,
   Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Clock3, FileText, Filter,
@@ -222,27 +222,40 @@ function MemberProfileEditor({ member, workspace, onCancel, onSave }: { member: 
   const [error, setError] = useState('');
   const otherMembers = workspace.members.filter((candidate) => candidate.id !== member.id);
   const split = (value: string, limit: number) => value.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean).slice(0, limit);
+  const profile: CollaborationProfile = {
+    basis,
+    source_label: sourceLabel.trim(),
+    recorded_on: recordedOn || null,
+    soft_skills: split(softSkills, 16),
+    working_preferences: preferences.trim(),
+    psychometric_method: basis === 'provided_assessment' && psychometricMethod.trim() ? psychometricMethod.trim() : null,
+    psychometric_summary: basis === 'provided_assessment' && psychometricSummary.trim() ? psychometricSummary.trim() : null,
+    compatibility: compatibility.map((item) => ({ member_id: item.member_id, note: item.note.trim() })),
+  };
+  const profileHasData = basis !== 'declared' || Boolean(profile.source_label || profile.recorded_on || profile.soft_skills.length || profile.working_preferences || profile.psychometric_method || profile.psychometric_summary || profile.compatibility.length);
+  const currentProfile = member.collaboration_profile || null;
+  const currentProfileKey = currentProfile ? JSON.stringify({ basis: currentProfile.basis, source_label: currentProfile.source_label.trim(), recorded_on: currentProfile.recorded_on || null, soft_skills: (currentProfile.soft_skills || []).map((item) => item.trim()).filter(Boolean), working_preferences: (currentProfile.working_preferences || '').trim(), psychometric_method: currentProfile.psychometric_method?.trim() || null, psychometric_summary: currentProfile.psychometric_summary?.trim() || null, compatibility: (currentProfile.compatibility || []).map((item) => ({ member_id: item.member_id, note: item.note.trim() })) }) : null;
+  const nextProfileKey = JSON.stringify({ ...profile, compatibility: profile.compatibility.map((item) => ({ member_id: item.member_id, note: item.note })) });
+  const profileChanged = currentProfile ? currentProfileKey !== nextProfileKey : profileHasData;
+  const skillsValue = split(skills, 16);
+  const nextAvailability = availability.trim() || null;
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError('');
-    if (sourceLabel.trim().length < 3) { setError('Adaugă o etichetă pentru sursa declarației sau evaluării.'); setBusy(false); return; }
-    if (compatibility.some((item) => !item.member_id || item.note.trim().length < 3)) { setError('Completează membrul și nota pentru fiecare relație sau elimină rândul incomplet.'); setBusy(false); return; }
-    if (new Set(compatibility.map((item) => item.member_id)).size !== compatibility.length) { setError('Alege un singur rând pentru fiecare coleg.'); setBusy(false); return; }
-    const profile: CollaborationProfile = {
-      basis,
-      source_label: sourceLabel.trim(),
-      recorded_on: recordedOn || null,
-      soft_skills: split(softSkills, 16),
-      working_preferences: preferences.trim(),
-      psychometric_method: basis === 'provided_assessment' && psychometricMethod.trim() ? psychometricMethod.trim() : null,
-      psychometric_summary: basis === 'provided_assessment' && psychometricSummary.trim() ? psychometricSummary.trim() : null,
-      compatibility: compatibility.map((item) => ({ member_id: item.member_id, note: item.note.trim() })),
-    };
-    if (profile.psychometric_summary && !profile.psychometric_method) { setError('Rezumatul psihometric necesită metoda evaluării furnizate.'); setBusy(false); return; }
-    if (profile.compatibility.some((item) => !otherMembers.some((candidate) => candidate.id === item.member_id))) { setError('Alege un alt membru din proiect pentru fiecare notă.'); setBusy(false); return; }
+    if (profileChanged && sourceLabel.trim().length < 3) { setError('Adaugă o etichetă pentru sursa declarației sau evaluării.'); setBusy(false); return; }
+    if (profileChanged && compatibility.some((item) => !item.member_id || item.note.trim().length < 3)) { setError('Completează membrul și nota pentru fiecare relație sau elimină rândul incomplet.'); setBusy(false); return; }
+    if (profileChanged && new Set(compatibility.map((item) => item.member_id)).size !== compatibility.length) { setError('Alege un singur rând pentru fiecare coleg.'); setBusy(false); return; }
+    if (profileChanged && profile.psychometric_summary && !profile.psychometric_method) { setError('Rezumatul psihometric necesită metoda evaluării furnizate.'); setBusy(false); return; }
+    if (profileChanged && profile.compatibility.some((item) => !otherMembers.some((candidate) => candidate.id === item.member_id))) { setError('Alege un alt membru din proiect pentru fiecare notă.'); setBusy(false); return; }
     if (!reason.trim()) { setError('Scrie motivul pentru această modificare.'); setBusy(false); return; }
+    const fields: Record<string, unknown> = { reason: reason.trim() };
+    if ((role.trim() || null) !== (member.role || null)) fields.role = role.trim() || null;
+    if (JSON.stringify(skillsValue) !== JSON.stringify(member.documented_skills || [])) fields.documented_skills = skillsValue;
+    if (nextAvailability !== (member.availability_note || null)) fields.availability_note = nextAvailability;
+    if (profileChanged) fields.collaboration_profile = profile;
+    if (Object.keys(fields).length === 1) { setError('Nu ai schimbat câmpuri de profil.'); setBusy(false); return; }
     try {
-      await onSave({ role: role.trim() || null, documented_skills: split(skills, 16), availability_note: availability.trim() || null, collaboration_profile: profile, reason: reason.trim() });
+      await onSave(fields);
       onCancel();
     } catch (reason: any) { setError(reason?.message || 'Nu am putut salva profilul.'); }
     finally { setBusy(false); }
@@ -255,7 +268,7 @@ function MemberProfileEditor({ member, workspace, onCancel, onSave }: { member: 
     <label className="tw-field">Disponibilitate din sursă<textarea rows={2} value={availability} onChange={(event) => setAvailability(event.target.value)} placeholder="Notă exactă sau lasă necompletat dacă nu este cunoscută" /></label>
     <div className="tw-editor-divider" />
     <label className="tw-field">Baza profilului<select value={basis} onChange={(event) => setBasis(event.target.value as CollaborationProfile['basis'])}><option value="declared">Declarat</option><option value="provided_assessment">Evaluare furnizată</option></select></label>
-    <label className="tw-field">Sursa declarației sau evaluării<input value={sourceLabel} onChange={(event) => setSourceLabel(event.target.value)} placeholder="Ex. fișa de rol, notă de manager, raport furnizat" required /></label>
+    <label className="tw-field">Sursa declarației sau evaluării<input value={sourceLabel} onChange={(event) => setSourceLabel(event.target.value)} placeholder="Ex. fișa de rol, notă de manager, raport furnizat" required={profileChanged} /></label>
     <label className="tw-field">Data consemnării<input type="date" value={recordedOn} onChange={(event) => setRecordedOn(event.target.value)} /></label>
     <label className="tw-field">Puncte forte / soft skills<textarea rows={3} value={softSkills} onChange={(event) => setSoftSkills(event.target.value)} placeholder="Numai atribute declarate sau din evaluarea furnizată" /></label>
     <label className="tw-field">Preferințe de lucru<textarea rows={3} value={preferences} onChange={(event) => setPreferences(event.target.value)} /></label>
@@ -273,7 +286,7 @@ function MemberProfileEditor({ member, workspace, onCancel, onSave }: { member: 
   </form>;
 }
 
-function MemberInspector({ member, workspace, panel, setPanel, onSelectTask, onOpenSource, onSave }: { member: ProjectRecord; workspace: ProjectWorkspace; panel: MemberPanel; setPanel: (panel: MemberPanel) => void; onSelectTask: (id: string) => void; onOpenSource: (ref: SourceRef) => void; onSave: (kind: string, id: string, fields: Record<string, unknown>) => Promise<void> }) {
+function MemberInspector({ member, workspace, panel, setPanel, onSelectTask, onOpenSource, onSave, inspectorRef }: { member: ProjectRecord; workspace: ProjectWorkspace; panel: MemberPanel; setPanel: (panel: MemberPanel) => void; onSelectTask: (id: string) => void; onOpenSource: (ref: SourceRef) => void; onSave: (kind: string, id: string, fields: Record<string, unknown>) => Promise<void>; inspectorRef: React.Ref<HTMLElement> }) {
   const [editing, setEditing] = useState(false);
   const assigned = [...workspace.tasks, ...workspace.deliverables].filter((task) => ownerFor(task, workspace)?.id === member.id);
   const explicitSkills = member.documented_skills || [];
@@ -285,7 +298,7 @@ function MemberInspector({ member, workspace, panel, setPanel, onSelectTask, onO
   const titleRefs = refsForField(member, 'title');
   const workButton = (task: ProjectRecord) => <button type="button" className="tw-member-task-row" key={task.id} onClick={() => onSelectTask(task.id)}><span className="tw-task-row-title"><strong>{task.title}</strong><small>{statusLabel(task.status)} · {task.due ? formatDate(task.due) : 'Fără termen consemnat'}</small></span><span className="tw-task-row-duration">{task.effort_hours != null ? `${task.effort_hours} h efort` : 'Efort necunoscut'}</span><ChevronRight size={15} /></button>;
 
-  return <aside className="tw-inspector" aria-label={`Profil ${member.title}`}>
+  return <aside ref={inspectorRef} className="tw-inspector" aria-label={`Profil ${member.title}`}>
     <header className="tw-inspector-person"><Avatar member={member} size={74} /><div><h2>{member.title}</h2><p>{member.role || 'Rol neînregistrat'}</p><span className="tw-evidence-pill">{member.member_type === 'person' ? 'Membru' : statusLabel(member.member_type)}</span></div><button type="button" className="tw-icon-button" aria-label="Editează profilul" onClick={() => setEditing((value) => !value)}><Settings2 size={17} /></button></header>
     <nav className="tw-profile-tabs" aria-label="Detalii membru">{([{ id: 'profile', label: 'Profil' }, { id: 'tasks', label: 'Sarcini' }, { id: 'relations', label: 'Relații' }] as const).map((item) => <button key={item.id} type="button" className={panel === item.id ? 'is-active' : ''} aria-pressed={panel === item.id} onClick={() => { setEditing(false); setPanel(item.id); }}>{item.label}{item.id === 'tasks' ? ` (${assigned.length})` : item.id === 'relations' ? ` (${related.length})` : ''}</button>)}</nav>
     {editing ? <MemberProfileEditor key={member.id} member={member} workspace={workspace} onCancel={() => setEditing(false)} onSave={saveProfile} /> : <>
@@ -590,6 +603,7 @@ export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreat
   const [memberPanel, setMemberPanel] = useState<MemberPanel>('profile');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(workspace.members[0]?.id || null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const inspectorRef = useRef<HTMLElement | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   useEffect(() => { if (!workspace.members.some((member) => member.id === selectedMemberId)) setSelectedMemberId(workspace.members[0]?.id || null); }, [workspace.members, selectedMemberId]);
@@ -619,8 +633,8 @@ export default function TeamWorkspace({ workspace, onOpenSource, onSave, onCreat
        <div className="tw-toolbar-actions">{group === 'tasks' && <><label className="tw-search"><Search size={16} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Caută sarcini…" aria-label="Caută sarcini" /></label><TaskFilter statusFilter={statusFilter} setStatusFilter={setStatusFilter} /><button type="button" className="tw-primary-button" onClick={() => onCreate('task')}><Plus size={16} /> Sarcină</button></>}</div>
     </div>
     {group === 'team' ? <div className="tw-team-layout">
-      <div className="tw-team-map-column"><TeamPeopleMap workspace={workspace} selectedMemberId={selectedMemberId} onSelectMember={(id) => { setSelectedMemberId(id); setMemberPanel('profile'); }} /></div>
-      {selectedMember ? <MemberInspector key={selectedMember.id} member={selectedMember} workspace={workspace} panel={memberPanel} setPanel={setMemberPanel} onSelectTask={(id) => { setSelectedTaskId(id); if (id) { setGroup('tasks'); setTaskView('list'); } }} onOpenSource={onOpenSource} onSave={onSave} /> : <aside className="tw-inspector tw-inspector-empty"><CircleHelp size={22} /><strong>Nu există membri înregistrați.</strong><p>Adaugă o persoană pentru a construi harta echipei.</p><button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={15} /> Adaugă membru</button></aside>}
+       <div className="tw-team-map-column"><TeamPeopleMap workspace={workspace} selectedMemberId={selectedMemberId} onSelectMember={(id) => { setSelectedMemberId(id); setMemberPanel('profile'); if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} /></div>
+      {selectedMember ? <MemberInspector key={selectedMember.id} member={selectedMember} workspace={workspace} panel={memberPanel} setPanel={setMemberPanel} onSelectTask={(id) => { setSelectedTaskId(id); if (id) { setGroup('tasks'); setTaskView('list'); } }} onOpenSource={onOpenSource} onSave={onSave} inspectorRef={inspectorRef} /> : <aside className="tw-inspector tw-inspector-empty"><CircleHelp size={22} /><strong>Nu există membri înregistrați.</strong><p>Adaugă o persoană pentru a construi harta echipei.</p><button type="button" className="tw-primary-button" onClick={() => onCreate('member')}><Plus size={15} /> Adaugă membru</button></aside>}
     </div> : <div className="tw-task-workspace">
       {taskView === 'list' && <TaskListView tasks={filteredTasks} workspace={workspace} selectedTaskId={selectedTaskId} onSelect={setTask} />}
       {taskView === 'gantt' && <GanttView tasks={filteredTasks} workspace={workspace} selectedTaskId={selectedTaskId} onSelect={setTask} simulationOutput={simulationOutput} />}
