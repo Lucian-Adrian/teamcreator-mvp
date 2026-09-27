@@ -1,4 +1,5 @@
 import demoFixtureJson from './public-demo-fixture.json';
+import { isPresentationDemo } from '../../shared/presentation-demo';
 import type {
   AuditEvent, JobEvent, ProjectChange, ProjectProposal, ProjectRecord, ProjectSource,
   ProjectSummary, ProjectWorkspace, ProposalItem, RecordKind, SourceQuoteContext, SourceRef,
@@ -141,6 +142,16 @@ function fixtureWorkspace(prefix: string): { workspace: ProjectWorkspace; source
   const sourceIds = new Map(workspace.sources.map((source) => [source.id, uid(`${prefix}-source`)]));
   const recordIds = new Map(allRecords(workspace).map((record) => [record.id, uid(`${prefix}-record`)]));
   const proposalIds = new Map(workspace.proposals.map((proposal) => [proposal.id, uid(`${prefix}-proposal`)]));
+  const remapFields = (fields: Partial<ProjectRecord>): Partial<ProjectRecord> => ({
+    ...fields,
+    ...(fields.id ? { id: recordIds.get(fields.id) || fields.id } : {}),
+    ...(fields.owner_id ? { owner_id: recordIds.get(fields.owner_id) || fields.owner_id } : {}),
+    ...(fields.depends_on ? { depends_on: fields.depends_on.map((id) => recordIds.get(id) || id) } : {}),
+    ...(fields.source_refs ? { source_refs: remapRefs(fields.source_refs, sourceIds) } : {}),
+    ...(fields.field_refs ? { field_refs: Object.fromEntries(Object.entries(fields.field_refs).map(([key, refs]) => [key, remapRefs(refs, sourceIds)])) } : {}),
+    ...(fields.dependency_refs ? { dependency_refs: Object.fromEntries(Object.entries(fields.dependency_refs).map(([key, refs]) => [recordIds.get(key) || key, remapRefs(refs, sourceIds)])) } : {}),
+    ...(fields.collaboration_profile ? { collaboration_profile: { ...fields.collaboration_profile, compatibility: fields.collaboration_profile.compatibility.map((item) => ({ ...item, member_id: recordIds.get(item.member_id) || item.member_id })) } } : {}),
+  });
   workspace.project.id = uid(`${prefix}-project`);
   workspace.project.created_at = timestamp;
   workspace.project.updated_at = timestamp;
@@ -153,6 +164,7 @@ function fixtureWorkspace(prefix: string): { workspace: ProjectWorkspace; source
     record.source_refs = remapRefs(record.source_refs, sourceIds);
     record.field_refs = Object.fromEntries(Object.entries(record.field_refs || {}).map(([key, refs]) => [key, remapRefs(refs, sourceIds)]));
     record.dependency_refs = Object.fromEntries(Object.entries(record.dependency_refs || {}).map(([key, refs]) => [recordIds.get(key) || key, remapRefs(refs, sourceIds)]));
+    if (record.collaboration_profile) record.collaboration_profile.compatibility = record.collaboration_profile.compatibility.map((item) => ({ ...item, member_id: recordIds.get(item.member_id) || item.member_id }));
     record.created_at = timestamp;
     record.updated_at = timestamp;
   }
@@ -164,7 +176,16 @@ function fixtureWorkspace(prefix: string): { workspace: ProjectWorkspace; source
     ...assignment, id: uid(`${prefix}-assignment`), record_id: recordIds.get(assignment.record_id) || assignment.record_id,
     member_id: recordIds.get(assignment.member_id) || assignment.member_id, source_refs: remapRefs(assignment.source_refs, sourceIds),
   }));
-  workspace.proposals = workspace.proposals.map((proposal) => ({ ...proposal, id: proposalIds.get(proposal.id)!, project_id: workspace.project.id }));
+  workspace.proposals = workspace.proposals.map((proposal) => ({
+    ...proposal, id: proposalIds.get(proposal.id)!, project_id: workspace.project.id,
+    source_ids: proposal.source_ids.map((id) => sourceIds.get(id) || id),
+    conflicts: proposal.conflicts.map((conflict) => ({ ...conflict, claims: conflict.claims.map((claim) => ({ ...claim, source_refs: remapRefs(claim.source_refs, sourceIds) })) })),
+    items: proposal.items.map((item) => ({ ...item, id: uid(`${prefix}-proposal-item`),
+      record_id: item.record_id ? recordIds.get(item.record_id) || item.record_id : null,
+      fields: remapFields(item.fields), before: item.before ? remapFields(item.before) : null,
+      source_refs: remapRefs(item.source_refs, sourceIds),
+    })),
+  }));
   workspace.audit = workspace.audit.map((event) => ({
     ...event, id: uid(`${prefix}-event`), project_id: workspace.project.id,
     source_ids: event.source_ids?.map((sourceId) => sourceIds.get(sourceId) || sourceId),
@@ -877,6 +898,17 @@ async function handlePublicRequest(request: Request, store: PublicRuntimeStore, 
       Object.assign(state.sourceTexts, imported.sourceTexts);
     });
     return encodeJson({ project: imported.workspace.project }, 201);
+  }
+  if (segments[0] === 'projects' && segments[1] === 'presentation' && segments.length === 2 && method === 'POST') {
+    const project = await store.transact((state) => {
+      const existing = state.workspaces.find((workspace) => isPresentationDemo(workspace));
+      if (existing) return existing.project;
+      const created = fixtureWorkspace(store.idPrefix);
+      state.workspaces.unshift(created.workspace);
+      Object.assign(state.sourceTexts, created.sourceTexts);
+      return created.workspace.project;
+    });
+    return encodeJson({ project }, 200);
   }
   if (segments[0] === 'projects' && segments[1] === 'demo' && segments.length === 2 && method === 'POST') {
     const created = fixtureWorkspace(store.idPrefix);

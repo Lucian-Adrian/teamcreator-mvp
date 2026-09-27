@@ -197,10 +197,35 @@ test('public synthetic workspace keeps the expanded synthetic people and work fi
   const created = await send(handler, 'projects/demo', 'POST', {});
   assert.equal(created.response.status, 201);
   const workspace = await send(handler, `projects/${created.data.project.id}/workspace`);
-  assert.equal(workspace.data.members.length, 7);
-  assert.equal(workspace.data.tasks.length, 14);
-  assert.equal(workspace.data.sources.length, 6);
+  assert.equal(workspace.data.members.length, 10);
+  assert.equal(workspace.data.tasks.length, 20);
+  assert.equal(workspace.data.sources.length, 10);
   assert.equal(workspace.data.project.synthetic, true);
+});
+
+test('presentation boot is idempotent and cloned review/profile references stay local', async () => {
+  const store = new MemoryPublicStore();
+  const handler = api(store);
+  const original = await createProject(handler, 'Existing private project');
+  const first = await send(handler, 'projects/presentation', 'POST', {});
+  const again = await send(handler, 'projects/presentation', 'POST', {});
+  assert.equal(first.data.project.id, again.data.project.id);
+  assert.equal(store.state.workspaces.length, 2);
+  assert.ok(store.state.workspaces.some((item) => item.project.id === original.id));
+  const workspace = (await send(handler, `projects/${first.data.project.id}/workspace`)).data;
+  const members = new Set(workspace.members.map((member: any) => member.id));
+  const records = new Set([...workspace.members, ...workspace.tasks, ...workspace.deliverables, ...workspace.risks, ...workspace.decisions].map((record: any) => record.id));
+  const sources = new Map(workspace.sources.map((source: any) => [source.id, source.excerpt]));
+  for (const member of workspace.members) for (const note of member.collaboration_profile?.compatibility || []) assert.ok(members.has(note.member_id));
+  for (const proposal of workspace.proposals) for (const item of proposal.items) {
+    if (item.record_id) assert.ok(records.has(item.record_id));
+    for (const ref of item.source_refs) assert.ok(String(sources.get(ref.source_id)).includes(ref.quote));
+    for (const refs of Object.values(item.fields.field_refs || {}) as any[]) for (const ref of refs) assert.ok(sources.has(ref.source_id));
+  }
+  const pending = workspace.proposals.find((proposal: any) => proposal.status === 'proposed');
+  assert.ok(pending?.items.length);
+  const result = await send(handler, `projects/${workspace.project.id}/proposals/${pending.id}/apply`, 'POST', { itemIds: [pending.items[0].id] });
+  assert.equal(result.response.status, 200);
 });
 
 test('check-ins are saved as source text and do not invent facts from plain prose', async () => {
