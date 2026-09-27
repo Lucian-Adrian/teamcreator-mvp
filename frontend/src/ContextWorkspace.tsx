@@ -131,10 +131,19 @@ function PhaseMark({ label, phase, state, source, lifecycle }: { label: string; 
   return <span className={`ctx-phase ctx-phase-${state}`} title={title} aria-label={`${label}: ${title}`}><span>{icon}</span><small>{state === 'complete' ? 'Da' : state === 'empty' ? 'N/A' : state === 'partial' ? 'Parțial' : state === 'unavailable' ? 'Nu' : 'Așteaptă'}</small></span>;
 }
 
+function extractionNote(source: ProjectSource) {
+  if (source.fixture_only) return 'Sursă demonstrativă sintetică. Această mostră pregătită nu a fost extrasă de un model AI.';
+  const note = source.extraction_note || '';
+  const match = note.match(/^No model ran\. Deterministic browser rules mapped (\d+) structured rows? into pending cited proposals\.$/);
+  return match ? `Regulile de import au pregătit ${match[1]} propuneri din tabel. Nu a rulat un model AI.` : note;
+}
+
 function FieldRow({ label, value, before }: { label: string; value: unknown; before?: unknown }) {
   if (value === undefined || value === null || value === '') return null;
-  const display = Array.isArray(value) ? value.join(', ') : String(value);
-  const previous = before === undefined || before === null || before === '' ? '' : Array.isArray(before) ? before.join(', ') : String(before);
+  const statuses: Record<string, string> = { not_started: 'De început', in_progress: 'În lucru', blocked: 'Blocat', complete: 'Finalizat', completed: 'Finalizat', waiting_for_confirmation: 'Așteaptă confirmarea', waiting: 'În așteptare', accepted: 'Acceptat' };
+  const format = (item: unknown) => Array.isArray(item) ? item.join(', ') : label === 'Stare' ? statuses[String(item)] || String(item) : String(item);
+  const display = format(value);
+  const previous = before === undefined || before === null || before === '' ? '' : format(before);
   return <div className="ctx-field-row"><span>{label}</span><div><strong>{display}</strong>{previous && previous !== display && <small>Înainte: {previous}</small>}</div></div>;
 }
 
@@ -187,7 +196,7 @@ function FactReviewCard({ fact, source, busy, onDecide, onReviewItem, onOpenSour
   return <article className="ctx-fact-card">
     <div className="ctx-fact-kicker"><span>{kindLabels[item.record_kind] || item.record_kind}</span><span>{item.operation === 'update' ? 'Modificare propusă' : 'Afirmație nouă'}</span></div>
     <h3>{item.title}</h3>
-    {item.fields.description && <p className="ctx-fact-description">{String(item.fields.description)}</p>}
+    {item.fields.description && <p className="ctx-fact-description">{String(item.fields.description).replace(/^Dependency as written in source: /, 'Dependență consemnată în sursă: ')}</p>}
     <div className="ctx-fact-fields">
       <FieldRow label="Responsabil" value={item.fields.owner} before={item.before?.owner} />
       <FieldRow label="Termen" value={item.fields.due} before={item.before?.due} />
@@ -223,10 +232,10 @@ function SourceInspector({ workspace, source, facts, records, focusRef, onDecide
   return <aside className="ctx-inspector">
     <div className="ctx-inspector-top"><div className="ctx-file-type">{sourceType(source).slice(0, 4)}</div><div><span className="ctx-eyebrow">INSPECTOR DE SURSĂ</span><h2>{source.name}</h2><p>{sourceType(source)}{source.size ? ` · ${formatBytes(source.size)}` : ''} · {statusText}</p></div></div>
     {focusRef?.source_id === source.id && <div className="ctx-focused-citation" aria-live="polite"><div><ShieldCheck size={14} /><strong>Citatul deschis</strong><span>{focusRef.location || 'Locație neînregistrată'}</span></div><blockquote>„{focusRef.quote}”</blockquote></div>}
-    <div className="ctx-inspector-section"><h3>Verifică extragerea</h3><p>{lifecycle.pendingCount ? `${lifecycle.pendingCount} afirmații propuse din această sursă.` : lifecycle.hasFacts ? 'Afirmațiile asociate acestei surse sunt păstrate în proiect.' : source.extraction_coverage === 'complete' ? 'Extragerea s-a încheiat fără afirmații propuse.' : 'Nu există încă o extragere confirmată pentru această sursă.'}</p>
+    <div className="ctx-inspector-section"><h3>Verifică extragerea</h3><p>{lifecycle.pendingCount ? `${lifecycle.pendingCount} ${lifecycle.pendingCount === 1 ? 'afirmație propusă' : 'afirmații propuse'} din această sursă.` : lifecycle.hasFacts ? 'Afirmațiile asociate acestei surse sunt păstrate în proiect.' : source.extraction_coverage === 'complete' ? 'Extragerea s-a încheiat fără afirmații propuse.' : 'Nu există încă o extragere confirmată pentru această sursă.'}</p>
       {source.error && <div className="ctx-source-error"><AlertCircle size={14} />{source.error}</div>}
       {source.coverage_note && <small className="ctx-coverage-note">{source.coverage_note}</small>}
-      {source.extraction_note && <small className="ctx-coverage-note">{source.extraction_note}</small>}
+      {source.extraction_note && <small className="ctx-coverage-note">{extractionNote(source)}</small>}
       {source.parser_status === 'parsed' && !source.fixture_only && source.extraction_coverage === 'complete' && <button type="button" className="ctx-retry-button" onClick={() => onRetry([source.id], { reprocess: true })} disabled={retrying}>{retrying ? 'Se reanalizează…' : 'Reanalizează sursa'}</button>}
     </div>
     {facts.length > 0 && <div className="ctx-inspector-section ctx-reviewable-facts"><h3>Afirmații de revizuit</h3>{facts.map((fact) => {

@@ -556,7 +556,7 @@ function App() {
     request.setRequestHeader('Idempotency-Key', crypto.randomUUID());
     if (aiShareEnabled) request.setRequestHeader('X-TeamCreator-AI', '1');
     request.upload.onprogress = (event) => {
-      if (event.lengthComputable) setIngestStatus((current) => current ? { ...current, progress: Math.round((event.loaded / event.total) * 100) } : current);
+      if (event.lengthComputable) setIngestStatus((current) => current ? { ...current, progress: Math.min(90, Math.round((event.loaded / event.total) * 90)) } : current);
     };
     request.onerror = () => setIngestStatus((current) => current ? { ...current, error: 'Upload did not reach the local project service.' } : current);
     request.onload = async () => {
@@ -746,7 +746,7 @@ function WelcomeState({ onCreate, onDemo, onAiDemo, busy, provider }: { onCreate
 }
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="modal-card" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close"><X size={18} /></button></div>{children}</section></div>;
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="modal-card" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Închide"><X size={18} /></button></div>{children}</section></div>;
 }
 
 function IngestModal({ onClose, onViewSources, onReviewUpdates, status, phase, onUpload, onRetry, retrying, retryResult, provider, aiShareEnabled, onAiShareChange }: { onClose: () => void; onViewSources: () => void; onReviewUpdates: () => void; status: { names: string[]; progress: number; response?: any; error?: string } | null; phase: string; onUpload: (files: FileList | File[]) => void; onRetry: (sourceIds?: string[]) => void; retrying: boolean; retryResult: string; provider: Record<string, unknown> | null; aiShareEnabled: boolean; onAiShareChange: (value: boolean) => void }) {
@@ -2023,12 +2023,12 @@ function ManualRecordModal({ workspace, initialKind = 'task', busy, onClose, onS
 function HistoryPage({ workspace }: { workspace: Workspace }) {
   const [expanded, setExpanded] = useState<string[]>([]);
   const entries = workspace.audit.map((item) => ({ ...item, sourceIds: item.source_ids || [] })).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
-  return <div className="history-layout"><div className="history-intro surface-card"><span className="history-shield"><History size={17} /></span><div><h2>Project memory</h2><p>Manager edits and decisions add a new event. Earlier source claims remain available for review.</p></div><span className="history-count">{entries.length} events</span></div>
+  return <div className="history-layout"><div className="history-intro surface-card"><span className="history-shield"><History size={17} /></span><div><h2>Istoricul proiectului</h2><p>Editările și deciziile managerului sunt păstrate împreună cu afirmațiile inițiale.</p></div><span className="history-count">{entries.length} evenimente</span></div>
     {entries.length ? <div className="history-list">{entries.map((entry) => {
       const hasSnapshots = entry.before !== undefined || entry.after !== undefined;
       const isExpanded = expanded.includes(entry.id);
-      return <article className="history-entry" key={entry.id}><div className="history-rail"><span className={`history-event-dot ${/reject/i.test(entry.type) ? 'event-rejected' : /apply|edit/i.test(entry.type) ? 'event-approved' : ''}`} /><span className="history-line" /></div><div className="history-entry-card surface-card"><div className="history-entry-top"><span className="history-event-type">{titleCase(entry.type)}</span><time>{displayDate(entry.at)}</time></div><div className="history-entry-summary"><h3>{safeHistoryText(entry.summary)}</h3>{hasSnapshots && <button className="history-detail-toggle" onClick={() => setExpanded((current) => isExpanded ? current.filter((id) => id !== entry.id) : [...current, entry.id])}>{isExpanded ? 'Hide changes' : 'View changes'}<ChevronDown size={13} className={isExpanded ? 'rotate-icon' : ''} /></button>}</div><div className="history-entry-meta"><span>{entry.actor || 'TeamCreator project event'}</span>{entry.sourceIds.length > 0 && <span><FileText size={12} />{entry.sourceIds.length} linked {entry.sourceIds.length === 1 ? 'source' : 'sources'}</span>}</div>{hasSnapshots && isExpanded && <SnapshotDiff before={entry.before} after={entry.after} workspace={workspace} />}</div></article>;
-    })}</div> : <div className="history-empty surface-card"><History size={20} /><h2>No project events yet</h2><p>Source additions, edits, and proposal decisions will be recorded here.</p></div>}
+      return <article className="history-entry" key={entry.id}><div className="history-rail"><span className={`history-event-dot ${/reject/i.test(entry.type) ? 'event-rejected' : /apply|edit/i.test(entry.type) ? 'event-approved' : ''}`} /><span className="history-line" /></div><div className="history-entry-card surface-card"><div className="history-entry-top"><span className="history-event-type">{historyTypeLabel(entry.type)}</span><time>{displayDate(entry.at)}</time></div><div className="history-entry-summary"><h3>{safeHistoryText(entry.summary)}</h3>{hasSnapshots && <button className="history-detail-toggle" onClick={() => setExpanded((current) => isExpanded ? current.filter((id) => id !== entry.id) : [...current, entry.id])}>{isExpanded ? 'Ascunde modificările' : 'Vezi modificările'}<ChevronDown size={13} className={isExpanded ? 'rotate-icon' : ''} /></button>}</div><div className="history-entry-meta"><span>{entry.actor === 'browser-local manager' || entry.actor === 'manager' ? 'Manager' : entry.actor || 'Eveniment de proiect'}</span>{entry.sourceIds.length > 0 && <span><FileText size={12} />{entry.sourceIds.length} · {entry.sourceIds.length === 1 ? 'sursă' : 'surse'}</span>}</div>{hasSnapshots && isExpanded && <SnapshotDiff before={entry.before} after={entry.after} workspace={workspace} />}</div></article>;
+    })}</div> : <div className="history-empty surface-card"><History size={20} /><h2>Nu există încă evenimente</h2><p>Sursele, editările și deciziile de revizuire vor apărea aici.</p></div>}
   </div>;
 }
 
@@ -2042,13 +2042,13 @@ function SnapshotDiff({ before, after, workspace }: { before: unknown; after: un
   const ignored = new Set(['id', 'project_id', 'source_refs', 'field_refs', 'created_at', 'updated_at', 'record_id', 'proposal_id']);
   const preferred = ['title', 'kind', 'owner', 'owner_id', 'role', 'status', 'due', 'baseline_due', 'current_forecast', 'depends_on', 'description', 'member_type', 'evidence_state', 'review_state'];
   const describe = (key: string, value: unknown) => {
-    if (value === null || value === undefined || value === '') return 'Not recorded';
+    if (value === null || value === undefined || value === '') return 'Neînregistrat';
     if (['due', 'baseline_due', 'current_forecast'].includes(key)) return displayDate(value);
     if (key === 'owner_id') {
       const owner = workspace.members.find((person) => person.id === value)?.title;
       if (owner) return owner;
       const raw = String(value || '');
-      return raw.startsWith('candidate:member:') ? titleCase(raw.slice('candidate:member:'.length).replace(/[-_]+/g, ' ')) : 'Unspecified owner or team';
+      return raw.startsWith('candidate:member:') ? titleCase(raw.slice('candidate:member:'.length).replace(/[-_]+/g, ' ')) : 'Responsabil nespecificat';
     }
     if (key === 'depends_on' && Array.isArray(value)) {
       const titles = value.map((id) => [...workspace.tasks, ...workspace.deliverables].find((record) => record.id === id)?.title).filter(Boolean);
@@ -2056,7 +2056,7 @@ function SnapshotDiff({ before, after, workspace }: { before: unknown; after: un
     }
     if (Array.isArray(value)) return `${value.length} recorded ${value.length === 1 ? 'value' : 'values'}`;
     if (['status', 'kind', 'member_type', 'evidence_state', 'review_state'].includes(key)) return titleCase(value);
-    return typeof value === 'object' ? 'Details recorded' : safeHistoryText(String(value));
+    return typeof value === 'object' ? 'Detalii consemnate' : safeHistoryText(String(value));
   };
   const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
   if (isObject(afterValue) && (!beforeValue || isObject(beforeValue))) {
@@ -2064,15 +2064,26 @@ function SnapshotDiff({ before, after, workspace }: { before: unknown; after: un
     const keys = Array.from(new Set([...Object.keys(beforeObject), ...Object.keys(afterValue)]))
       .filter((key) => !ignored.has(key) && !(key !== 'owner_id' && /(?:^|_)(?:id|ids|ref|refs)$/i.test(key)) && valueText(beforeObject[key]) !== valueText(afterValue[key]));
     const selected = [...preferred.filter((key) => keys.includes(key)), ...keys.filter((key) => !preferred.includes(key))].slice(0, 12);
-    return <div className="snapshot-diff">{selected.length ? selected.map((key) => <div className="snapshot-diff-row" key={key}><strong>{titleCase(key)}</strong><span>{describe(key, beforeObject[key])}</span><ArrowRight size={12} /><b>{describe(key, afterValue[key])}</b></div>) : <p>No field-level difference was saved for this event.</p>}</div>;
+    return <div className="snapshot-diff">{selected.length ? selected.map((key) => <div className="snapshot-diff-row" key={key}><strong>{titleCase(key)}</strong><span>{describe(key, beforeObject[key])}</span><ArrowRight size={12} /><b>{describe(key, afterValue[key])}</b></div>) : <p>Nu există diferențe salvate pe câmpuri pentru acest eveniment.</p>}</div>;
   }
-  return <div className="snapshot-diff"><div className="snapshot-diff-row"><strong>Before</strong><span>{safeHistoryText(valueText(beforeValue))}</span><ArrowRight size={12} /><b>{safeHistoryText(valueText(afterValue))}</b></div></div>;
+  return <div className="snapshot-diff"><div className="snapshot-diff-row"><strong>Înainte</strong><span>{safeHistoryText(valueText(beforeValue))}</span><ArrowRight size={12} /><b>{safeHistoryText(valueText(afterValue))}</b></div></div>;
+}
+
+function historyTypeLabel(type: string) {
+  const labels: Record<string, string> = { project_created: 'Proiect creat', source_added: 'Sursă adăugată', proposal_created: 'Propunere pregătită', proposal_applied: 'Propunere aplicată', proposal_rejected: 'Propunere respinsă', record_created: 'Înregistrare adăugată', record_edited: 'Înregistrare corectată' };
+  return labels[type] || titleCase(type);
 }
 
 function safeHistoryText(value: unknown) {
   return String(value || '')
-    .replace(/candidate:(?:member|task|deliverable):[^\s,;]+(?:\s+[^\s,;]+)?/gi, 'a proposed project record')
-    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, 'linked record');
+    .replace(/candidate:(?:member|task|deliverable):[^\s,;]+(?:\s+[^\s,;]+)?/gi, 'o înregistrare propusă')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, 'înregistrare asociată')
+    .replace(/^Added browser-local source: /, 'Sursă adăugată: ')
+    .replace(/^Project created: /, 'Proiect creat: ')
+    .replace(/^Applied task: /, 'Sarcină aplicată: ')
+    .replace(/^Prepared (\d+) pending source-cited changes\.$/, 'Propuneri pregătite cu citate: $1.')
+    .replace(/^1 change applied\. Other proposal items still need review\.$/, 'O modificare aplicată. Celelalte afirmații așteaptă revizuirea.')
+    .replace(/^Manager applied (\d+) source-grounded changes?\.$/, 'Modificări cu sursă aplicate de manager: $1.');
 }
 
 function StatusBadge({ status }: { status?: string | null }) {
