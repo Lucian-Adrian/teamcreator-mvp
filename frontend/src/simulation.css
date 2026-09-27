@@ -486,3 +486,58 @@
 .tc-sim-organic-map svg{min-height:240px;}.tc-sim-map-label span{font-size:10px;}.tc-sim-map-tools small{display:none;}.tc-sim-workbench > summary small{display:none;}.tc-sim-secondary-settings{margin:0 8px 8px;}
 }
 .tc-sim-inspector-close{align-self:flex-start;border:0;background:transparent;color:#7c8b9b;padding:4px;cursor:pointer}.tc-sim-path-inspector-card .tc-sim-card-heading{align-items:flex-start}
+
+.tc-sim-mobile-family-legend { display: none; }
+.tc-sim-stage-node { pointer-events: all !important; cursor: pointer; }
+.tc-sim-organic-map .tc-sim-branch-hit:focus-visible,
+.tc-sim-organic-map .tc-sim-stage-node:focus-visible,
+.tc-sim-organic-map .tc-sim-branch-endpoint:focus-visible { outline: none; filter: drop-shadow(0 0 4px rgba(42, 99, 177, .55)); }
+.tc-sim-map-tools button:focus-visible { outline: 2px solid #3976c5; outline-offset: 2px; }
+
+@media (max-width: 650px) {
+  .tc-sim-results.has-output { gap: 12px; }
+  .tc-sim-results.has-output:not(.is-running) > .tc-sim-path-card { grid-row: 1; grid-column: 1; }
+  .tc-sim-results.has-output:not(.is-running) > .tc-sim-path-inspector-card { grid-row: 2; grid-column: 1; margin: 0; padding: 14px; border: 1px solid #e6ebf0; border-radius: 10px; }
+  .tc-sim-results.has-output:not(.is-running) > .tc-sim-outcome { grid-row: 3; grid-column: 1; }
+  .tc-sim-path-card { min-width: 0; }
+  .tc-sim-map-label { align-items: flex-start; flex-wrap: wrap; gap: 3px 10px; font-size: 14px; }
+  .tc-sim-map-label span { font-size: 12px; }
+  .tc-sim-organic-map { overflow: hidden; padding: 7px; border: 1px solid #e5ebf2; border-radius: 12px; background: linear-gradient(180deg, #fbfcff, #fff 80%); }
+  .tc-sim-organic-map svg { width: 100%; height: auto; min-height: 236px; max-height: none; }
+  .tc-sim-organic-map.is-compact .tc-sim-branch-hit { stroke-width: 24px; }
+  .tc-sim-organic-map.is-compact .tc-sim-branch-line { vector-effect: non-scaling-stroke; }
+  .tc-sim-organic-map.is-compact .tc-sim-origin-label { font-size: 20px; }
+  .tc-sim-organic-map.is-compact .tc-sim-branch-stage { font-size: 16px; }
+  .tc-sim-mobile-family-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 3px 1px 1px; color: #53677e; }
+  .tc-sim-mobile-family-legend > span { display: inline-flex; min-height: 24px; flex: 1 1 auto; align-items: center; gap: 6px; font-size: 12px; line-height: 1.25; }
+  .tc-sim-mobile-family-legend i { width: 16px; height: 3px; flex: 0 0 auto; border-radius: 4px; background: #8292a5; }
+  .tc-sim-mobile-family-legend .family-shorter i { background: #5682c4; }
+  .tc-sim-mobile-family-legend .family-central i { background: #40a28c; }
+  .tc-sim-mobile-family-legend .family-later i { background: #cf806e; }
+  .tc-sim-map-tools { flex-wrap: wrap; gap: 7px; padding: 8px 2px 0; font-size: 12px; }
+  .tc-sim-map-tools button { min-width: 42px; height: 42px; padding: 0 11px; font-size: 15px; }
+  .tc-sim-map-tools span { padding: 0 3px; font-size: 12px; }
+  .tc-sim-map-tools small { flex: 1 0 100%; margin: 0; font-size: 11px; }
+  .tc-sim-path-inspector-card .tc-sim-card-heading h3 { font-size: 18px; }
+  .tc-sim-path-inspector-card .tc-sim-card-heading p { font-size: 13px; }
+  .tc-sim-path-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tc-sim-path-facts > div { min-width: 0; padding: 10px 6px; }
+  .tc-sim-path-facts span { font-size: 11px; line-height: 1.3; }
+  .tc-sim-path-facts strong { overflow-wrap: anywhere; font-size: 17px; line-height: 1.2; }
+  .tc-sim-path-facts small { font-size: 11px; line-height: 1.35; }
+  .tc-sim-path-provenance { margin-top: 12px; font-size: 11px; }
+  .tc-sim-click-prompt { padding: 14px; }
+  .tc-sim-click-prompt h3 { margin: 8px 0 5px; font-size: 18px; }
+  .tc-sim-click-prompt p { margin-bottom: 10px; font-size: 13px; }
+  .tc-sim-click-prompt > div { gap: 4px; margin: 10px 0; padding-top: 10px; }
+  .tc-sim-click-prompt strong { font-size: 20px; }
+  .tc-sim-global-summary > summary strong { font-size: 18px; }
+  .tc-sim-global-summary > summary span { font-size: 12px; line-height: 1.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-simulation .tc-sim-spin { animation: none !important; }
+  .tc-simulation .tc-sim-progress-track > span,
+  .tc-simulation .tc-sim-organic-map *,
+  .tc-simulation .tc-sim-map-tools * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
