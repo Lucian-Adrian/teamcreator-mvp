@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles.css';
 import './design-system.css';
+import './presentation-polish.css';
 
 async function start() {
   if (import.meta.env.VITE_PUBLIC_DEMO === 'true') {

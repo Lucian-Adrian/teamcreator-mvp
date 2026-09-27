@@ -1,0 +1,160 @@
+/* Small presentation layer: preserve page composition and the shared type stack. */
+:root {
+  --presentation-line: #e3eaf3;
+  --presentation-shadow: 0 3px 14px rgba(24, 45, 76, .045);
+  --presentation-shadow-hover: 0 7px 19px rgba(24, 45, 76, .075);
+  --presentation-ease: cubic-bezier(.2, .65, .25, 1);
+}
+
+.app-header {
+  box-shadow: 0 1px 10px rgba(20, 40, 72, .045);
+}
+
+.content-area {
+  text-rendering: optimizeLegibility;
+}
+
+.view-heading h1,
+.context-v7-heading h1,
+.tw-page-head h1,
+.tc-decisions-header h1,
+.tc-sim-heading h1,
+.rp-page-heading h1 {
+  text-wrap: balance;
+}
+
+:is(
+  .ctx-source-list-card,
+  .ctx-inspector,
+  .integration-panel,
+  .tc-decisions-split,
+  .tc-simulation .tc-sim-card,
+  .tw-inspector,
+  .tw-selected-task,
+  .tw-task-list-group,
+  .tw-priority-matrix-card,
+  .rp-toolbar
+) {
+  border-color: var(--presentation-line);
+  box-shadow: var(--presentation-shadow);
+}
+
+:is(
+  .ctx-fact-card,
+  .ctx-accepted-record,
+  .ctx-source-quote,
+  .integration-service-card,
+  .tc-decision-option-card,
+  .tc-decision-context-card,
+  .tc-decision-action-panel,
+  .tc-decision-draft-panel,
+  .tw-assessment-note,
+  .tw-risk-factor,
+  .tw-priority-matrix-card
+) {
+  border-color: var(--presentation-line);
+}
+
+:is(
+  .app-header .workflow-tab,
+  .context-v7-tab,
+  .ctx-source-row,
+  .integration-service-card,
+  .tc-decisions-tabs > button,
+  .tc-decision-inbox-item,
+  .tc-decision-source-chip,
+  .tc-decision-affected-list button,
+  .tc-decision-primary,
+  .tc-decision-secondary,
+  .tc-decision-danger,
+  .tc-sim-button,
+  .tw-group-tabs button,
+  .tw-task-view-tabs button,
+  .tw-member-task-row,
+  .tw-profile-relation-row,
+  .tw-task-list-row,
+  .tw-task-row,
+  .tw-priority-task-row,
+  .tw-matrix-point,
+  .rp-page-actions button,
+  .rp-audience button
+) {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 150ms;
+  transition-timing-function: var(--presentation-ease);
+}
+
+.integration-service-card:hover:not(:disabled),
+.tc-decision-source-chip:hover:not(:disabled),
+.tw-priority-task-row:hover {
+  box-shadow: 0 2px 9px rgba(24, 45, 76, .065);
+}
+
+.tc-decision-inbox-item:not(.active):hover,
+.ctx-source-row:hover,
+.tw-task-list-row:hover,
+.tw-member-task-row:hover,
+.tw-profile-relation-row:hover {
+  background-color: #f8faff;
+}
+
+.app-shell :is(button, a, input, textarea, select, summary):focus-visible {
+  outline: 2px solid rgba(7, 81, 255, .38);
+  outline-offset: 2px;
+}
+
+@keyframes presentation-enter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+.context-v7,
+.team-workspace,
+.tc-decisions-workspace,
+.reports-workspace,
+.simulation-host:not([hidden]) .tc-simulation {
+  animation: presentation-enter 170ms var(--presentation-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(
+    .app-header .workflow-tab,
+    .context-v7-tab,
+    .ctx-source-row,
+    .integration-service-card,
+    .tc-decisions-tabs > button,
+    .tc-decision-inbox-item,
+    .tc-decision-source-chip,
+    .tc-decision-affected-list button,
+    .tc-decision-primary,
+    .tc-decision-secondary,
+    .tc-decision-danger,
+    .tc-sim-button,
+    .tw-group-tabs button,
+    .tw-task-view-tabs button,
+    .tw-member-task-row,
+    .tw-profile-relation-row,
+    .tw-task-list-row,
+    .tw-task-row,
+    .tw-priority-task-row,
+    .tw-matrix-point,
+    .rp-page-actions button,
+    .rp-audience button
+  ) {
+    transition-duration: 0.01ms;
+  }
+
+  .context-v7,
+  .team-workspace,
+  .tc-decisions-workspace,
+  .reports-workspace,
+  .simulation-host:not([hidden]) .tc-simulation {
+    animation: none;
+  }
+
+  .spin,
+  .tw-spin,
+  .tc-sim-spin {
+    animation: none;
+  }
+}
