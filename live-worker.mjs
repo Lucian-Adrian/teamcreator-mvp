@@ -1,5 +1,5 @@
 import { handleAI, aiStatus } from './live-ai.mjs';
-export const RELEASE = '2026-09-27-live-mvp';
+export const RELEASE = '2026-09-27-v7-mc-1.2.2';
 
 export default {
   async fetch(request, env) {
