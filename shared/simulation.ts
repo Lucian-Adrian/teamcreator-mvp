@@ -128,6 +128,28 @@ export interface TaskSimulationSummary {
   hasAssignment: boolean;
 }
 
+export interface RemainingWorkForecastPoint {
+  workingDays: number;
+  date: string;
+  remaining: RemainingWorkQuantiles;
+}
+
+export interface RemainingWorkQuantiles {
+  p10: number;
+  p50: number;
+  p90: number;
+}
+
+export interface RemainingWorkForecast {
+  unit: 'tasks' | 'hours';
+  timeBasis: 'working_days_from_model_start';
+  scope: 'active_task_scope_at_simulation_start';
+  milestonesExcluded: true;
+  completionRule: 'whole_task_remains_until_sampled_finish';
+  effortCoverage: { confirmedTaskCount: number; totalTaskCount: number };
+  points: RemainingWorkForecastPoint[];
+}
+
 export interface SimulationResult {
   kind: 'simulation_run';
   projectId: string;
@@ -144,6 +166,8 @@ export interface SimulationResult {
   families: SimulationFamilySummary[];
   stages: SimulationStageDistribution[];
   tasks: TaskSimulationSummary[];
+  /** Always present in model 1.2.2 and later; optional for compatibility with older saved result fixtures. */
+  remainingWorkForecast?: RemainingWorkForecast;
   paths: SimulationPath[];
   metrics: {
     activeTaskCount: number;
@@ -180,7 +204,7 @@ export interface SimulationComparison {
 
 export type SimulationOutput = SimulationResult | SimulationComparison;
 
-export const SIMULATION_MODEL_VERSION = '1.2.1';
+export const SIMULATION_MODEL_VERSION = '1.2.2';
 
 interface SimNode {
   id: string;
@@ -215,6 +239,52 @@ export class SimulationValidationError extends Error {
     super(message);
     this.name = 'SimulationValidationError';
   }
+}
+
+/** Builds pointwise remaining-work quantiles from each iteration's joint task finishes. */
+export async function summarizeRemainingWorkSamples(
+  finishSamplesByTask: readonly (readonly number[])[],
+  weights: readonly number[],
+  timepoints: readonly number[],
+  sampleCount: number,
+  signal?: AbortSignal,
+): Promise<RemainingWorkQuantiles[]> {
+  if (finishSamplesByTask.length !== weights.length || !Number.isInteger(sampleCount) || sampleCount < 1 || !timepoints.length) {
+    throw new SimulationValidationError('Eșantioanele pentru curba de lucru rămasă nu sunt aliniate.');
+  }
+  if (finishSamplesByTask.some((samples) => samples.length !== sampleCount)
+    || weights.some((weight) => !Number.isFinite(weight) || weight < 0)
+    || timepoints.some((time, index) => !Number.isFinite(time) || time < 0 || (index > 0 && time < timepoints[index - 1]))) {
+    throw new SimulationValidationError('Eșantioanele pentru curba de lucru rămasă conțin valori invalide.');
+  }
+
+  const valuesByTime = timepoints.map(() => new Array<number>(sampleCount));
+  for (let iteration = 0; iteration < sampleCount; iteration += 1) {
+    if (iteration % 512 === 0) {
+      throwIfAborted(signal);
+      if (iteration > 0) await yieldToBrowser();
+    }
+    const taskFinishes = finishSamplesByTask.map((samples, taskIndex) => ({ finish: samples[iteration], weight: weights[taskIndex], taskIndex }));
+    if (taskFinishes.some((sample) => !Number.isFinite(sample.finish) || sample.finish < 0)) {
+      throw new SimulationValidationError('Eșantionul conține o dată de finalizare invalidă.');
+    }
+    taskFinishes.sort((left, right) => left.finish - right.finish || left.taskIndex - right.taskIndex);
+    let remaining = weights.reduce((sum, weight) => sum + weight, 0);
+    let finishedCount = 0;
+    for (let timeIndex = 0; timeIndex < timepoints.length; timeIndex += 1) {
+      const time = timepoints[timeIndex];
+      while (finishedCount < taskFinishes.length && taskFinishes[finishedCount].finish <= time) {
+        remaining -= taskFinishes[finishedCount].weight;
+        finishedCount += 1;
+      }
+      valuesByTime[timeIndex][iteration] = Math.max(0, remaining);
+    }
+  }
+  throwIfAborted(signal);
+  return valuesByTime.map((values) => {
+    const sorted = values.sort((a, b) => a - b);
+    return { p10: percentile(sorted, 0.1), p50: percentile(sorted, 0.5), p90: percentile(sorted, 0.9) };
+  });
 }
 
 export function createDefaultSimulationConfig(workspace: ProjectWorkspace): SimulationConfig {
@@ -539,13 +609,14 @@ async function runInternal(workspace: ProjectWorkspace, config: SimulationConfig
   const families = makeSimulationFamilies(completionSamples, chosenPaths);
   const completionDates = quantileDates(completionDays, config.calendar);
   const deadlineOutlook = summarizeDeadlineOutlook(completionSamples, config.calendar);
+  const activeNodes = nodes.filter((node) => node.kind === 'task' && !node.completed);
+  const remainingWorkForecast = await buildRemainingWorkForecast(workspace, activeNodes, taskFinishSamples, completionSamples, config.calendar, callbacks.signal);
   const stages: SimulationStageDistribution[] = ordered.filter((node) => !node.completed).map((node) => ({
     id: node.id,
     title: node.title,
     kind: node.kind,
     finishDays: getQuantiles(taskFinishSamples.get(node.id) || [0]),
   }));
-  const activeNodes = nodes.filter((node) => node.kind === 'task' && !node.completed);
   const assignedCount = activeNodes.filter((node) => node.memberIds.length > 0).length;
   const unresolvedDependencyTaskIds = nodes.filter((node) => node.record.unresolved_dependencies?.length).map((node) => node.id);
   const placeholderEstimateTaskIds = activeNodes.filter((node) => estimates[node.id]?.basis === 'placeholder' || !estimates[node.id]?.confirmed).map((node) => node.id);
@@ -575,6 +646,7 @@ async function runInternal(workspace: ProjectWorkspace, config: SimulationConfig
     'Încărcarea simultană este un proxy de context switching, nu un diagnostic psihologic. Coada de capacitate este diferența față de traseul critic cu aceleași durate și disponibilități, fără competiție între sarcini.',
     'Fricțiunea de predare/aprobare în timp nu este calculată: workspace-ul nu conține istoric validat al duratelor de așteptare. Numărul de predări între responsabili este doar un număr de muchii dependente cu owner diferit.',
     'Livrabilele sunt milestone-uri fără durată. Dependențele nerezolvate în workspace sunt ignorate în calendar și raportate ca lipsă.',
+    `Curba de lucru rămasă păstrează scopul sarcinilor active de la începutul simulării; fiecare sarcină întreagă rămâne numărată până la terminarea ei simulată. Milestone-urile nu intră în curbă. Unitatea este ${remainingWorkForecast.unit === 'hours' ? 'ore numai pentru efort revizuit de manager pentru fiecare sarcină activă' : 'sarcini, deoarece efortul nu este confirmat pentru fiecare sarcină activă'}.`,
   ];
   const result: SimulationResult = {
     kind: 'simulation_run',
@@ -592,6 +664,7 @@ async function runInternal(workspace: ProjectWorkspace, config: SimulationConfig
     families,
     stages,
     tasks: taskSummaries,
+    remainingWorkForecast,
     paths: chosenPaths,
     metrics: {
       activeTaskCount: activeNodes.length,
@@ -611,6 +684,65 @@ async function runInternal(workspace: ProjectWorkspace, config: SimulationConfig
     config: structuredCloneSafe(config),
   };
   return { result, completionSamples };
+}
+
+async function buildRemainingWorkForecast(
+  workspace: ProjectWorkspace,
+  activeTasks: SimNode[],
+  taskFinishSamples: Map<string, number[]>,
+  completionSamples: number[],
+  calendar: SimulationCalendar,
+  signal?: AbortSignal,
+): Promise<RemainingWorkForecast> {
+  const sourceIds = new Set(workspace.sources.map((source) => source.id));
+  const confirmedEffortTasks = activeTasks.filter((node) => hasManagerConfirmedEffort(node.record, workspace, sourceIds));
+  const unit: RemainingWorkForecast['unit'] = activeTasks.length > 0 && confirmedEffortTasks.length === activeTasks.length ? 'hours' : 'tasks';
+  const finishesByTask = activeTasks.map((node) => {
+    const finishes = taskFinishSamples.get(node.id);
+    if (!finishes || finishes.length !== completionSamples.length) {
+      throw new SimulationValidationError(`Seria de finalizare lipsește pentru sarcina „${node.title}”.`);
+    }
+    return { node, finishes, weight: unit === 'hours' ? node.record.effort_hours! : 1 };
+  });
+  const maxCompletionDays = completionSamples.reduce((max, value) => Math.max(max, value), 0);
+  const pointCount = maxCompletionDays > 0 ? 32 : 1;
+  const timepoints = Array.from({ length: pointCount }, (_, index) => pointCount === 1 ? 0 : maxCompletionDays * index / (pointCount - 1));
+  const quantilesByTime = await summarizeRemainingWorkSamples(
+    finishesByTask.map(({ finishes }) => finishes),
+    finishesByTask.map(({ weight }) => weight),
+    timepoints,
+    completionSamples.length,
+    signal,
+  );
+  const points = timepoints.map((workingDays, index): RemainingWorkForecastPoint => ({
+    workingDays,
+    date: workingDateAtOffset(calendar, workingDays),
+    remaining: quantilesByTime[index],
+  }));
+  return {
+    unit,
+    timeBasis: 'working_days_from_model_start',
+    scope: 'active_task_scope_at_simulation_start',
+    milestonesExcluded: true,
+    completionRule: 'whole_task_remains_until_sampled_finish',
+    effortCoverage: { confirmedTaskCount: confirmedEffortTasks.length, totalTaskCount: activeTasks.length },
+    points,
+  };
+}
+
+function hasManagerConfirmedEffort(record: ProjectRecord, workspace: ProjectWorkspace, sourceIds: ReadonlySet<string>): boolean {
+  if (!['manager_confirmed', 'manager_corrected'].includes(record.review_state || '')
+    || typeof record.effort_hours !== 'number' || !Number.isFinite(record.effort_hours) || record.effort_hours < 0) return false;
+  const fieldRefs = record.field_refs?.effort_hours || [];
+  const sourceEvidence = fieldRefs.some((ref) => sourceIds.has(ref.source_id) && typeof ref.quote === 'string' && ref.quote.trim().length >= 4);
+  if (sourceEvidence) return true;
+  return workspace.audit.some((event) => {
+    if (event.record_id !== record.id || !['record_created', 'record_edited'].includes(event.type) || !event.after || typeof event.after !== 'object' || Array.isArray(event.after)) return false;
+    const after = event.after as Partial<ProjectRecord>;
+    return after.effort_hours === record.effort_hours
+      && after.evidence_state === 'expert_observation'
+      && ['manager_confirmed', 'manager_corrected'].includes(after.review_state || '');
+  });
 }
 
 function buildNodes(workspace: ProjectWorkspace): SimNode[] {

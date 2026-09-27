@@ -6,6 +6,7 @@ import {
   createDefaultSimulationConfig,
   runSimulation,
   summarizeDeadlineOutlook,
+  summarizeRemainingWorkSamples,
   workingDateAtOffset,
   SimulationValidationError,
   type SimulationConfig,
@@ -42,6 +43,14 @@ function fixedConfig(project: ProjectWorkspace, taskDays: Record<string, number>
   return config;
 }
 
+function empiricalPercentile(values: number[], quantile: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const position = (sorted.length - 1) * quantile;
+  const low = Math.floor(position);
+  const high = Math.ceil(position);
+  return low === high ? sorted[low] : sorted[low] + (sorted[high] - sorted[low]) * (position - low);
+}
+
 test('fixed seed produces identical completion draws and selected paths', async () => {
   const project = workspace([record('a'), record('b', 'task', ['a'])]);
   const config = fixedConfig(project, { a: 2, b: 3 });
@@ -50,7 +59,7 @@ test('fixed seed produces identical completion draws and selected paths', async 
   assert.deepEqual(first.completionDays, second.completionDays);
   assert.deepEqual(first.histogram, second.histogram);
   assert.deepEqual(first.paths, second.paths);
-  assert.equal(first.modelVersion, '1.2.1');
+  assert.equal(first.modelVersion, '1.2.2');
   assert.equal(first.paths.length, 24);
   assert.equal(new Set(first.paths.map(path => path.iteration)).size, first.paths.length);
   assert.ok(first.paths.every((path, index) => index === 0 || path.targetQuantile >= first.paths[index - 1].targetQuantile));
@@ -198,4 +207,51 @@ test('sampled trajectories use actual empirical ranks and family membership', as
     if (path.familyId === 'later') assert.ok(path.completionDays >= result.completionDays.p50);
   }
   assert.equal(result.deadlineOutlook!.onTime.count + result.deadlineOutlook!.lateUpTo7Days.count + result.deadlineOutlook!.lateMoreThan7Days.count, 1000);
+});
+
+test('remaining work forecast uses joint full-sample ranks, reviewed effort units, and completion boundaries', async () => {
+  const finishesA = Array.from({ length: 16 }, (_, index) => index < 10 ? 9 : 1);
+  const finishesB = Array.from({ length: 16 }, (_, index) => index < 6 || (index >= 10 && index < 14) ? 9 : 1);
+  const paired = await summarizeRemainingWorkSamples([finishesA, finishesB], [1, 1], [0, 5, 9], 16);
+  const perTaskMedians = [finishesA, finishesB].reduce((sum, finishes) => sum + empiricalPercentile(finishes.map((finish) => Number(finish > 5)), 0.5), 0);
+  assert.equal(paired[1].p50, 1);
+  assert.equal(perTaskMedians, 2);
+  assert.notEqual(paired[1].p50, perTaskMedians);
+  assert.deepEqual(paired[0], { p10: 2, p50: 2, p90: 2 });
+  assert.deepEqual(paired[2], { p10: 0, p50: 0, p90: 0 });
+
+  const project = workspace([record('a'), record('b'), record('already-done', 'task', [], null, '2026-09-27T00:00:00.000Z')], [record('gate', 'deliverable', ['a', 'b'])]);
+  const config = fixedConfig(project, { a: 8, b: 8 }, 100);
+  config.estimates.a = { min: 2, mode: 8, max: 14, basis: 'manager_estimate', confirmed: true };
+  config.estimates.b = { min: 2, mode: 8, max: 14, basis: 'manager_estimate', confirmed: true };
+  const result = await runSimulation(project, config);
+  const forecast = result.remainingWorkForecast!;
+  assert.deepEqual({ unit: forecast.unit, scope: forecast.scope, milestonesExcluded: forecast.milestonesExcluded }, {
+    unit: 'tasks', scope: 'active_task_scope_at_simulation_start', milestonesExcluded: true,
+  });
+  assert.deepEqual(forecast.effortCoverage, { confirmedTaskCount: 0, totalTaskCount: 2 });
+  assert.equal(forecast.points.length, 32);
+  assert.equal(forecast.points[0].workingDays, 0);
+  assert.ok(forecast.points.at(-1)!.workingDays >= result.completionDays.p90);
+  assert.deepEqual(forecast.points.at(-1)!.remaining, { p10: 0, p50: 0, p90: 0 });
+
+  const hoursProject = workspace([record('c'), record('d')], [record('milestone', 'deliverable', ['c'])]);
+  const citation = { source_id: 'effort-source', location: 'line 1', quote: 'Effort is confirmed at five hours.' };
+  hoursProject.sources.push({ id: 'effort-source', name: 'effort.txt', sha256: 'abc', size: 40, media_type: 'text/plain', parser_status: 'parsed', created_at: '2026-09-27T00:00:00.000Z' });
+  const [taskC, taskD] = hoursProject.tasks;
+  Object.assign(taskC, { effort_hours: 5, review_state: 'manager_confirmed', evidence_state: 'supported', field_refs: { effort_hours: [citation] } });
+  Object.assign(taskD, { effort_hours: 7, review_state: 'manager_corrected', evidence_state: 'expert_observation', reason: 'PM checked the effort.', field_refs: {} });
+  hoursProject.audit.push({ id: 'effort-edit', project_id: hoursProject.project.id, type: 'record_edited', actor: 'local manager', at: '2026-09-27T00:00:00.000Z', summary: 'PM corrected effort.', record_id: taskD.id, after: structuredClone(taskD) });
+  hoursProject.deliverables[0].effort_hours = 999;
+  const hoursResult = await runSimulation(hoursProject, fixedConfig(hoursProject, { c: 1, d: 2 }, 100));
+  const hoursForecast = hoursResult.remainingWorkForecast!;
+  assert.equal(hoursForecast.unit, 'hours');
+  assert.deepEqual(hoursForecast.effortCoverage, { confirmedTaskCount: 2, totalTaskCount: 2 });
+  assert.equal(hoursForecast.points[0].remaining.p50, 12);
+  assert.deepEqual(hoursForecast.points.at(-1)!.remaining, { p10: 0, p50: 0, p90: 0 });
+
+  hoursProject.audit = [];
+  const incompleteEffortResult = await runSimulation(hoursProject, fixedConfig(hoursProject, { c: 1, d: 2 }, 100));
+  assert.equal(incompleteEffortResult.remainingWorkForecast!.unit, 'tasks');
+  assert.deepEqual(incompleteEffortResult.remainingWorkForecast!.effortCoverage, { confirmedTaskCount: 1, totalTaskCount: 2 });
 });
