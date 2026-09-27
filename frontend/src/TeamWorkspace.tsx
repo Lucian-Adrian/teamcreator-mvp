@@ -8,7 +8,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { CollaborationProfile, ProjectRecord, ProjectWorkspace, SourceRef } from '../../shared/types';
 import { workingDateAtOffset } from '../../shared/simulation';
-import type { SimulationOutput, SimulationResult } from '../../shared/simulation';
+import type { RemainingWorkForecast, SimulationOutput, SimulationResult } from '../../shared/simulation';
 import TeamPeopleMap from './TeamPeopleMap';
 import './team-workspace.css';
 
@@ -74,6 +74,10 @@ function statusLabel(status: unknown) {
     accepted: 'Acceptat', needs_confirmation: 'Necesită confirmare', under_review: 'În revizuire',
   };
   return labels[value.toLowerCase()] || value.replace(/[_-]+/g, ' ').replace(/^./, (first) => first.toLocaleUpperCase());
+}
+
+function probabilityPercent(share: number) {
+  return `${(share * 100).toFixed(1)}%`;
 }
 
 function validDate(value?: string | null) {
@@ -427,48 +431,45 @@ function ListSourceLinks({ task, workspace, onOpenSource }: { task: ProjectRecor
 
 function BurndownView({ tasks, workspace, simulationOutput, onSelect, onOpenSource, onOpenDecision }: { tasks: ProjectRecord[]; workspace: ProjectWorkspace; simulationOutput: SimulationOutput | null; onSelect: (id: string) => void; onOpenSource: (ref: SourceRef) => void; onOpenDecision?: (id: string) => void }) {
   const simulation = scenarioFor(simulationOutput);
-  const markedComplete = tasks.filter((task) => Boolean(task.completed_at) || isCompleted(task.status));
+  const remainingForecast: RemainingWorkForecast | null = simulation?.remainingWorkForecast || null;
+  const displayedAllTasks = tasks.length === workspace.tasks.length && workspace.tasks.every((task) => tasks.some((item) => item.id === task.id));
+  const simulatedTaskIds = new Set(simulation?.tasks.map((task) => task.taskId) || []);
+  const filterMatchesModelScope = !simulation || displayedAllTasks;
+  const chartScopeTasks = simulation ? workspace.tasks.filter((task) => simulatedTaskIds.has(task.id)) : tasks;
+  const countSeriesEnabled = filterMatchesModelScope && remainingForecast?.unit !== 'hours';
+  const markedComplete = chartScopeTasks.filter((task) => Boolean(task.completed_at) || isCompleted(task.status));
   const confirmedCompleted = markedComplete.filter((task) => ['manager_confirmed', 'manager_corrected'].includes(task.review_state) && Boolean(validDate(task.completed_at)));
   const completedDates = confirmedCompleted.map((task) => validDate(task.completed_at)!.toISOString().slice(0, 10));
   const completionDays = [...new Set(completedDates)].sort();
-  const actualReady = markedComplete.length > 0 && confirmedCompleted.length === markedComplete.length && completionDays.length >= 2;
+  const actualReady = countSeriesEnabled && markedComplete.length > 0 && confirmedCompleted.length === markedComplete.length && completionDays.length >= 2;
   const actualByDay = new Map<string, number>();
   for (const date of completedDates) actualByDay.set(date, (actualByDay.get(date) || 0) + 1);
-  const planDates = tasks.map((task) => taskDeadline(task)?.date || null);
-  const planReady = tasks.length > 0 && planDates.every(Boolean);
+  const planDates = chartScopeTasks.map((task) => taskDeadline(task)?.date || null);
+  const planReady = countSeriesEnabled && chartScopeTasks.length > 0 && planDates.every(Boolean);
   const planByDay = new Map<string, number>();
   if (planReady) for (const date of planDates as string[]) planByDay.set(date.slice(0, 10), (planByDay.get(date.slice(0, 10)) || 0) + 1);
 
-  const modelPaths = simulation ? [10, 50, 90].map((quantile) => simulation.paths.find((path) => path.targetQuantile === quantile) || null) : [];
-  const modelEvents = modelPaths.map((path) => {
-    const events = new Map<string, number>();
-    if (!path || !simulation) return { path, events };
-    for (const point of path.tasks) {
-      if (!tasks.some((task) => task.id === point.id)) continue;
-      try {
-        const date = workingDateAtOffset(simulation.config.calendar, point.finishDays);
-        events.set(date, (events.get(date) || 0) + 1);
-      } catch { /* Invalid calendar conversions do not produce chart points. */ }
-    }
-    return { path, events };
-  });
-  const modelReady = modelEvents.some(({ path, events }) => path && events.size > 0);
-  let modelStart: string | null = null;
-  if (simulation) { try { modelStart = workingDateAtOffset(simulation.config.calendar, 0); } catch { modelStart = null; } }
-  const modelDates = [...new Set([...(modelStart ? [modelStart] : []), ...modelEvents.flatMap(({ events }) => [...events.keys()])])].sort();
-  const days = [...new Set([...completionDays, ...planByDay.keys(), ...modelDates, ...(simulation?.deadlineOutlook?.deadlineDate ? [simulation.deadlineOutlook.deadlineDate] : [])])].sort();
+  const modelPoints = remainingForecast && simulation ? remainingForecast.points.map((point) => {
+    let date = point.date;
+    try { date = workingDateAtOffset(simulation.config.calendar, point.workingDays); } catch { /* Keep the date supplied with the model point. */ }
+    return { ...point, date };
+  }) : [];
+  const modelReady = modelPoints.length > 1;
+  const modelByDate = new Map(modelPoints.map((point) => [point.date, point.remaining]));
+  const modelDates = [...new Set(modelPoints.map((point) => point.date))].sort();
+  const days = [...new Set([...(countSeriesEnabled ? completionDays : []), ...planByDay.keys(), ...modelDates, ...(simulation?.deadlineOutlook?.deadlineDate ? [simulation.deadlineOutlook.deadlineDate] : [])])].sort();
   const cumulative = (events: Map<string, number>, day: string) => [...events.entries()].filter(([date]) => date <= day).reduce((sum, [, count]) => sum + count, 0);
-  const remaining = (events: Map<string, number>, day: string) => Math.max(0, tasks.length - cumulative(events, day));
+  const remaining = (events: Map<string, number>, day: string) => Math.max(0, chartScopeTasks.length - cumulative(events, day));
   const series = days.map((day) => ({
     day,
-    actual: actualReady ? remaining(actualByDay, day) : null,
+    actual: actualReady && countSeriesEnabled ? remaining(actualByDay, day) : null,
     plan: planReady ? remaining(planByDay, day) : null,
-    p10: modelReady && modelEvents[0]?.path ? remaining(modelEvents[0].events, day) : null,
-    p50: modelReady && modelEvents[1]?.path ? remaining(modelEvents[1].events, day) : null,
-    p90: modelReady && modelEvents[2]?.path ? remaining(modelEvents[2].events, day) : null,
+    p10: modelByDate.get(day)?.p10 ?? null,
+    p50: modelByDate.get(day)?.p50 ?? null,
+    p90: modelByDate.get(day)?.p90 ?? null,
   }));
   const width = 900; const height = 380; const pad = { left: 58, top: 28, right: 25, bottom: 50 };
-  const yMax = Math.max(1, tasks.length);
+  const yMax = Math.max(1, chartScopeTasks.length, ...modelPoints.map((point) => point.remaining.p90));
   const firstDay = days[0]; const lastDay = days.at(-1);
   const firstTime = firstDay ? validDate(firstDay)?.getTime() ?? 0 : 0;
   const lastTime = lastDay ? validDate(lastDay)?.getTime() ?? firstTime : firstTime;
@@ -477,6 +478,7 @@ function BurndownView({ tasks, workspace, simulationOutput, onSelect, onOpenSour
   const pathFor = (key: 'actual' | 'plan' | 'p10' | 'p50' | 'p90') => {
     const points = series.map((point) => ({ x: xAt(point.day), y: point[key] == null ? null : yAt(point[key]!) })).filter((point): point is { x: number; y: number } => point.y != null);
     if (!points.length) return '';
+    if (key === 'p10' || key === 'p50' || key === 'p90') return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
     return points.map((point, index) => index === 0 ? `M ${point.x} ${point.y}` : `H ${point.x} V ${point.y}`).join(' ');
   };
   const risk = simulation?.deadlineOutlook || null;
@@ -488,10 +490,11 @@ function BurndownView({ tasks, workspace, simulationOutput, onSelect, onOpenSour
   let riskFinishDate: string | null = null;
   if (simulation && riskFactor) { try { riskFinishDate = workingDateAtOffset(simulation.config.calendar, riskFactor.finishDays.p90); } catch { riskFinishDate = null; } }
   const tickIndexes = series.map((_, index) => index).filter((index) => index === 0 || index === series.length - 1 || index % Math.max(1, Math.ceil(series.length / 7)) === 0);
+  const workUnitLabel = remainingForecast?.unit === 'hours' ? 'ore de efort planificat' : 'sarcini';
   return <div className="tw-burndown-page">
     <div className="tw-burndown-grid">
       <section className="tw-burndown-chart-card">
-        <header><div><h2>Sarcini rămase</h2><p>{firstDay && lastDay ? `${formatDate(firstDay, { day: 'numeric', month: 'long' })} – ${formatDate(lastDay, { day: 'numeric', month: 'long', year: 'numeric' })}` : 'Perioada apare după înregistrarea termenelor sau finalizărilor'}</p></div><div className="tw-chart-legend">{actualReady && <span><i className="tw-actual-line" />Finalizări confirmate</span>}{planReady && <span><i className="tw-plan-line" />Plan la termenele consemnate</span>}{modelReady && <span><i className="tw-model-line" />Model P50</span>}{modelReady && <span><i className="tw-model-range" />Model P10–P90</span>}</div></header>
+        <header><div><h2>{remainingForecast?.unit === 'hours' ? 'Efort planificat rămas' : 'Sarcini rămase'}</h2><p>{firstDay && lastDay ? `${formatDate(firstDay, { day: 'numeric', month: 'long' })} – ${formatDate(lastDay, { day: 'numeric', month: 'long', year: 'numeric' })} · ${workUnitLabel}` : 'Perioada apare după înregistrarea termenelor sau finalizărilor'}</p></div><div className="tw-chart-legend">{actualReady && <span><i className="tw-actual-line" />Finalizări confirmate</span>}{planReady && <span><i className="tw-plan-line" />Plan la termenele consemnate</span>}{modelReady && <span><i className="tw-model-line" />Model P50 · {remainingForecast?.unit === 'hours' ? 'ore' : 'sarcini'}</span>}{modelReady && <span><i className="tw-model-range" />Model P10–P90</span>}</div></header>
         {days.length > 1 ? <div className="tw-chart-scroll"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Istoric confirmat și forecast Monte Carlo afișate separat">
           {[0, .25, .5, .75, 1].map((fraction) => { const value = Math.round(yMax * fraction); return <g key={fraction}><line className="tw-chart-gridline" x1={pad.left} x2={width - pad.right} y1={yAt(value)} y2={yAt(value)} /><text className="tw-chart-axis-label" x={pad.left - 12} y={yAt(value) + 4} textAnchor="end">{value}</text></g>; })}
           {series.some((point) => point.p10 != null && point.p90 != null) && <path className="tw-chart-model-band" d={`${series.filter((point) => point.p90 != null).map((point, index) => `${index === 0 ? 'M' : 'L'} ${xAt(point.day)} ${yAt(point.p90!)}`).join(' ')} ${series.filter((point) => point.p10 != null).slice().reverse().map((point) => `L ${xAt(point.day)} ${yAt(point.p10!)}`).join(' ')} Z`} />}
@@ -502,13 +505,15 @@ function BurndownView({ tasks, workspace, simulationOutput, onSelect, onOpenSour
           {series.some((point) => point.actual != null) && <path className="tw-chart-actual" d={pathFor('actual')} />}
           {risk && <line className="tw-chart-deadline" x1={xAt(risk.deadlineDate)} x2={xAt(risk.deadlineDate)} y1={pad.top} y2={height - pad.bottom} />}
           {tickIndexes.map((index) => <text className="tw-chart-date-label" key={days[index]} x={xAt(days[index])} y={height - 14} textAnchor="middle">{formatDate(days[index], { day: 'numeric', month: 'short' })}</text>)}
-        </svg></div> : <div className="tw-burndown-empty"><CircleHelp size={22} /><strong>Nu există suficiente date pentru o curbă.</strong><p>Actualul cere finalizări confirmate cu completed_at pe cel puțin două zile. Planul și forecastul Monte Carlo rămân serii separate.</p></div>}
-        {!actualReady && <div className="tw-series-notice"><AlertTriangle size={15} /><span>Actual indisponibil: {markedComplete.length ? `${confirmedCompleted.length} din ${markedComplete.length} finalizări au confirmare și timestamp; sunt necesare două zile.` : 'nu există finalizări confirmate cu timestamp pe două zile.'} Nu interpolăm pontaje sau schimbări istorice de scop.</span></div>}
-         <p className="tw-chart-caveat">Istoricul reconstruiește numărul de sarcini finalizate confirmate cu completed_at la scopul curent. Efortul planificat nu reprezintă ore lucrate, iar schimbările istorice de scop nu sunt disponibile.</p>
+        </svg></div> : <div className="tw-burndown-empty"><CircleHelp size={22} /><strong>Nu există suficiente date pentru o curbă.</strong><p>Actualul cere finalizări confirmate cu completed_at pe cel puțin două zile. Forecastul apare numai după o simulare cu distribuția rămasă pe tot eșantionul.</p></div>}
+        {!filterMatchesModelScope && <div className="tw-series-notice"><AlertTriangle size={15} /><span>Filtrul curent schimbă lista față de scopul simulării. Curba modelului păstrează scopul de la începutul rulării; istoricul și planul nu sunt suprapuse.</span></div>}
+        {remainingForecast?.unit === 'hours' && <div className="tw-series-notice"><AlertTriangle size={15} /><span>Forecastul folosește ore de efort planificat verificate. Finalizările observate numără sarcini, nu ore lucrate, de aceea nu se compară pe aceeași axă.</span></div>}
+        {!actualReady && countSeriesEnabled && <div className="tw-series-notice"><AlertTriangle size={15} /><span>Actual indisponibil: {markedComplete.length ? `${confirmedCompleted.length} din ${markedComplete.length} finalizări au confirmare și timestamp; sunt necesare două zile.` : 'nu există finalizări confirmate cu timestamp pe două zile.'} Nu interpolăm pontaje sau schimbări istorice de scop.</span></div>}
+         <p className="tw-chart-caveat">{remainingForecast?.unit === 'hours' ? 'Efortul de pe curbă este planificat și verificat, nu pontat. Modelul păstrează întreaga sarcină până la finalizarea eșantionată; milestone-urile sunt excluse.' : 'Istoricul reconstruiește numărul de sarcini finalizate confirmate cu completed_at la scopul curent. Schimbările istorice de scop nu sunt disponibile.'}</p>
       </section>
       <aside className="tw-burndown-summary">
         <header><h2>Risc de depășire a termenului</h2></header>
-         {risk && lateShare != null ? <><strong className="tw-deadline-risk-value">{Math.round(lateShare * 100)}% <small>în simulare</small></strong><p>Termen țintă: {formatDate(risk.deadlineDate)} · {risk.sampleCount.toLocaleString('ro-RO')} rulări · {forecastLabel}.</p><div className="tw-risk-buckets"><span>La timp <strong>{Math.round(risk.onTime.share * 100)}%</strong></span><span>Cel mult 7 zile târziu <strong>{Math.round(risk.lateUpTo7Days.share * 100)}%</strong></span><span>Peste 7 zile târziu <strong>{Math.round(risk.lateMoreThan7Days.share * 100)}%</strong></span></div>
+         {risk && lateShare != null ? <><strong className="tw-deadline-risk-value">{probabilityPercent(lateShare)} <small>în simulare</small></strong><p>Termen țintă: {formatDate(risk.deadlineDate)} · {risk.sampleCount.toLocaleString('ro-RO')} rulări · {forecastLabel}.</p><div className="tw-risk-buckets"><span>La timp <strong>{probabilityPercent(risk.onTime.share)}</strong></span><span>Cel mult 7 zile târziu <strong>{probabilityPercent(risk.lateUpTo7Days.share)}</strong></span><span>Peste 7 zile târziu <strong>{probabilityPercent(risk.lateMoreThan7Days.share)}</strong></span></div>
           {simulation?.completionDates && <div className="tw-summary-stat"><span>Finalizare P10–P50–P90</span><strong>{formatDate(simulation.completionDates.p10)} · {formatDate(simulation.completionDates.p50)} · {formatDate(simulation.completionDates.p90)}</strong></div>}
            {riskTask && <div className="tw-risk-factor"><span>Sarcină cu cuantila P90 cea mai târzie</span><button type="button" onClick={() => onSelect(riskTask.id)}><FileText size={16} /><span><strong>{riskTask.title}</strong><small>{formatDate(riskFinishDate)} · termen P90 al sarcinii</small></span><ChevronRight size={15} /></button><EvidenceLinks refs={riskTask.source_refs || []} workspace={workspace} onOpenSource={onOpenSource} /></div>}
           {riskTask && riskDecision && onOpenDecision && <button type="button" className="tw-secondary-button" onClick={() => onOpenDecision(riskDecision.id)}>Pregătește decizia <ArrowRight size={14} /></button>}
@@ -516,7 +521,7 @@ function BurndownView({ tasks, workspace, simulationOutput, onSelect, onOpenSour
         </> : <><strong className="tw-deadline-risk-value is-unknown">Model indisponibil</strong><p>{simulation ? 'Termenul țintă nu este configurat în calendarul simulării.' : 'Rulează Monte Carlo cu o dată țintă pentru riscul de depășire.'}</p><p className="tw-soft-note">Finalizările observate și termenele consemnate rămân vizibile fără forecast.</p></>}
       </aside>
     </div>
-    {!planReady && <p className="tw-burndown-plan-note">Curba de plan apare separat numai când fiecare sarcină din filtrul curent are un termen înregistrat.</p>}
+    {countSeriesEnabled && !planReady && <p className="tw-burndown-plan-note">Curba de plan apare separat numai când fiecare sarcină din filtrul curent are un termen înregistrat.</p>}
   </div>;
 }
 
