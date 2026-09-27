@@ -81,7 +81,7 @@ export default function DecisionsWorkspace({ workspace, simulationOutput, focuse
   const completedItems = useMemo(() => collectApplied(workspace), [workspace]);
   const appliedCount = completedItems.length;
   const latestResult = resultOf(simulationOutput);
-  const selectedSourceSignature = (selected?.sourceRefs || []).map((ref) => `${ref.source_id}:${ref.location}:${ref.quote}`).join('|');
+  const selectedSourceSignature = (selected?.sourceRefs || []).map((ref) => `${ref.source_id}:${sourceName(workspace, ref)}:${ref.location}:${ref.quote}`).join('|');
   const recordedOwner = selected ? recordedOwnerName(selected, workspace) : '';
   const draftDefaults = useMemo(() => selected ? createDraftDefaults(selected, workspace, recordedOwner) : null, [
     selected?.key, selected?.title, selected?.summary, selected?.due, selectedSourceSignature, workspace.project.id, recordedOwner,

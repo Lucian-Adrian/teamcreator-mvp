@@ -26,3 +26,4 @@
 .rp-more-facts{width:100%}
 .rp-more-facts>summary{width:fit-content;padding:2px 0;color:#0751d6;font-size:12px;font-weight:650;cursor:pointer}
 .rp-more-facts>div{display:grid;gap:7px;margin-top:7px}
+@media(min-width:651px){.rp-canvas{margin-top:12px;padding-top:14px}.rp-paper{padding-top:28px}.rp-document-heading{padding-bottom:18px;margin-bottom:16px}.rp-document-section{padding-bottom:18px;margin-bottom:18px}.rp-document-section h2{margin-bottom:8px}}
