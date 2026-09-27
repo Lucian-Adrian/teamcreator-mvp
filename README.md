@@ -6,6 +6,8 @@ TeamCreator helps a project manager review sources, connect team responsibilitie
 
 The phone layout keeps Context, Echipă, Simulare and Decizii visible. People have a separate compact canvas layout, source review adapts to narrow screens, and simulation branches remain selectable with their details below the chart.
 
+Simulation paths draw from left to right with an explicit replay control. Page modules load when needed, and optimized display assets preserve the source artwork. The current release reduces initial referenced asset size by 56.6%; [measurement details and verification](DEVELOPMENT.md#simulation-motion-and-loading-performance) describe the comparison.
+
 [Development history, iterations and verification](DEVELOPMENT.md) · [Public commits](https://github.com/Lucian-Adrian/teamcreator-mvp/commits/main/)
 
 ## Run locally

@@ -10,6 +10,22 @@ Lucian directed the product, reviewed the interface, approved the v7 visual dire
 
 ## Milestones
 
+### Simulation motion and loading performance
+
+Lucian requested removal of the black selection boundary, left-to-right drawing, a more refined interface and faster, smoother loading. The black rectangle was the browser's default outline on a pointer-focused SVG endpoint. The fix preserves visible keyboard focus.
+
+- `ebd5a27`: finite trace drawing and explicit replay, stable selection, memoized geometry, local hover state, clearer chart controls and inspector. All 24 sampled curve strings matched the previous version. Automatic motion respects reduced-motion settings; an explicit Play action requests one pass and then stops.
+- `da5f050`: lazy Team, Simulation and Decisions routes, retained simulation state, manual page-load recovery, and optimized WebP display assets. [Asset provenance](public/brand/optimized-assets-manifest.json) records the derivation; original PNG artwork remains.
+- `7a754c9`: shared surface and interaction polish with reduced-motion support.
+
+Initial referenced JS, CSS and image files decreased from 1,967,125 to 853,774 uncompressed bytes (56.6%). Startup JS decreased 38.0% and initial CSS 44.6%. This comparison covers the Context startup assets, including the browser runtime and visible logos; route-only assets are deferred. It is not a network-latency benchmark.
+
+Both production builds passed and matched. Browser checks covered pointer/keyboard focus, replay progression, no replay on selection, reduced-motion behavior, route/state retention, and desktop/mobile layout. Published as `2026-09-27-motion-performance`, Cloudflare `eee833eb-2a2c-4ccb-b06e-efac757daa50`.
+
+![Refined simulation canvas](docs/simulation-motion-desktop.jpg)
+
+![Selected simulation path on a phone](docs/simulation-motion-mobile.jpg)
+
 ### Phone presentation and clearer relationships
 
 Lucian asked for a cleaner map based on the pitch deck, useful relationship controls, quieter integration cards and a mobile version suitable for the hackathon judges.
