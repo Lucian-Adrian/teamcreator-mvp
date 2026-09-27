@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, Download, Plus, Sparkles, Upload } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Download, Plus, Upload } from 'lucide-react';
 
 export type WorkflowPage = 'context' | 'map' | 'simulation' | 'diagnostic';
 
@@ -16,6 +16,8 @@ interface AppHeaderProps {
   exportMenuOpen: boolean;
   onProjectChange: (id: string) => void;
   onPageChange: (page: WorkflowPage) => void;
+  onBack: () => void;
+  canGoBack: boolean;
   onCreate: () => void;
   onImport: () => void;
   onToggleExport: () => void;
@@ -54,17 +56,7 @@ export default function AppHeader(props: AppHeaderProps) {
       </button>)}
     </nav>
     <div className="header-actions">
-      <details className="agent-status-menu">
-        <summary className="agent-status-trigger" aria-label="Starea agentului">
-          <Sparkles size={21} /><span>Agent</span>
-          <i className={props.providerDegraded ? 'agent-status-dot is-unavailable' : 'agent-status-dot'} />
-        </summary>
-        <div className="agent-status-panel">
-          <strong>{props.providerText}</strong>
-          <p>{props.providerMessage || props.providerText}</p>
-          <small>Modificările propuse rămân în revizuire până la decizia managerului.</small>
-        </div>
-      </details>
+      <button className="header-back" onClick={props.onBack} disabled={!props.canGoBack} aria-label="Înapoi"><ArrowLeft size={17} /><span>Înapoi</span></button>
       <div className="header-utilities">
         <button className="header-action" title="Creează proiect" aria-label="Proiect" onClick={props.onCreate}><Plus size={20} /></button>
         <button className="header-action" title="Importă surse" aria-label="Importă" onClick={props.onImport} disabled={!props.hasProject}><Upload size={19} /></button>

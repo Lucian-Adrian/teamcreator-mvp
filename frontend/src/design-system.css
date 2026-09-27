@@ -182,3 +182,8 @@
   .context-subtab, .visual-tab { font-size: 13px; padding-inline: 12px; }
   .export-menu { right: 0; width: min(330px,calc(100vw - 32px)); }
 }
+
+.header-back { display:inline-flex;align-items:center;gap:7px;border:1px solid #dae2ee;background:#fff;color:#38516d;border-radius:7px;min-height:36px;padding:0 11px;font-size:13px;font-weight:550;white-space:nowrap;cursor:pointer; }
+.header-back:hover { background:#f5f8fc;border-color:#b7c9e2; }
+.header-back:disabled { opacity:.35;cursor:default; }
+@media(max-width:650px){.header-actions{flex-direction:row;align-items:center}.header-back{padding:0 8px;min-height:32px}.header-back span{display:none}.header-utilities{gap:2px}.header-actions .header-action{width:30px;height:32px}}

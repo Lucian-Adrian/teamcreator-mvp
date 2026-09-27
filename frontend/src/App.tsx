@@ -1,5 +1,7 @@
 import AppHeader from './AppHeader';
-import TeamWorkspace from './TeamWorkspace';
+import TeamWorkspace, { type TeamViewState } from './TeamWorkspace';
+import { readNavigation, navigationHash, type ProjectNavigation } from './navigation';
+import { isPresentationDemo } from '../../shared/presentation-demo';
 import ContextWorkspace from './ContextWorkspace';
 import DecisionsWorkspace from './DecisionsWorkspace';
 import { buildProjectReport } from './project-report';
@@ -195,18 +197,21 @@ function downloadDiagnosticReport(output: SimulationOutput, workspace: Workspace
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function App() {
+  const [initialNavigation] = useState(readNavigation);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState('');
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [page, setPage] = useState<Page>('context');
-  const [contextPanel, setContextPanel] = useState<'sources' | 'integrations' | 'review' | 'history'>('sources');
+  const [page, setPage] = useState<Page>(initialNavigation.page);
+  const [contextPanel, setContextPanel] = useState<'sources' | 'review' | 'history'>(initialNavigation.contextPanel);
+  const [teamView, setTeamView] = useState<TeamViewState>(initialNavigation.team);
+  const [decisionTab, setDecisionTab] = useState<ProjectNavigation['decisionTab']>(initialNavigation.decisionTab);
   const [provider, setProvider] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [overlay, setOverlay] = useState<'create' | 'ingest' | null>(null);
   const [createName, setCreateName] = useState('');
-  const [selectedNode, setSelectedNode] = useState<SelectedNode>(null);
+  const [selectedNode, setSelectedNode] = useState<SelectedNode>(initialNavigation.selectedNode);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showAllAttention, setShowAllAttention] = useState(false);
   const [proposalBusyId, setProposalBusyId] = useState('');
@@ -219,7 +224,7 @@ function App() {
   const [checkinContinuationIds, setCheckinContinuationIds] = useState<string[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualKind, setManualKind] = useState<'member' | 'task'>('task');
-  const [focusedDecisionId, setFocusedDecisionId] = useState('');
+  const [focusedDecisionId, setFocusedDecisionId] = useState(initialNavigation.decisionId);
   const [retryingSources, setRetryingSources] = useState(false);
   const [retryResult, setRetryResult] = useState('');
   const [diagnosingProject, setDiagnosingProject] = useState(false);
@@ -227,7 +232,7 @@ function App() {
   const [snapshotImporting, setSnapshotImporting] = useState(false);
   const [snapshotImportMessage, setSnapshotImportMessage] = useState('');
   const snapshotInputRef = useRef<HTMLInputElement>(null);
-  const [focusedSourceId, setFocusedSourceId] = useState('');
+  const [focusedSourceId, setFocusedSourceId] = useState(initialNavigation.sourceId);
   const [focusedSourceRef, setFocusedSourceRef] = useState<SourceRef | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportingFormat, setExportingFormat] = useState('');
@@ -238,6 +243,42 @@ function App() {
   const [aiShareEnabled, setAiShareEnabled] = useState(() => {
     try { return localStorage.getItem('teamcreator:ai-sharing') === 'enabled'; } catch { return false; }
   });
+  const lastNavigation = useRef<string | null>(null);
+  const [historyDepth, setHistoryDepth] = useState(0);
+  const navigation: ProjectNavigation = { projectId: activeId, page, contextPanel, team: teamView, decisionTab,
+    selectedNode, sourceId: focusedSourceId, sourceRef: focusedSourceRef, decisionId: focusedDecisionId,
+    overlay, manualOpen, manualKind };
+  const navigationSignature = JSON.stringify(navigation);
+
+  useEffect(() => {
+    const restore = (event: PopStateEvent) => {
+      const next = (event.state?.teamcreatorNavigation || readNavigation()) as ProjectNavigation;
+      lastNavigation.current = JSON.stringify(next);
+      setHistoryDepth(Number(event.state?.teamcreatorDepth || 0));
+      if (next.projectId) setActiveId(next.projectId);
+      setPage(next.page); setContextPanel(next.contextPanel); setTeamView(next.team); setDecisionTab(next.decisionTab);
+      setSelectedNode(next.selectedNode); setFocusedSourceId(next.sourceId); setFocusedSourceRef(next.sourceRef);
+      setFocusedDecisionId(next.decisionId); setOverlay(next.overlay); setManualOpen(next.manualOpen); setManualKind(next.manualKind);
+      setExportMenuOpen(false);
+    };
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, []);
+
+  useEffect(() => {
+    if (!activeId || loading || workspace?.project.id !== activeId || navigationSignature === lastNavigation.current) return;
+    const initial = lastNavigation.current === null;
+    const depth = initial ? 0 : Number(window.history.state?.teamcreatorDepth || 0) + 1;
+    const state = { teamcreatorNavigation: navigation, teamcreatorDepth: depth };
+    window.history[initial ? 'replaceState' : 'pushState'](state, '', navigationHash(navigation));
+    lastNavigation.current = navigationSignature;
+    setHistoryDepth(depth);
+  }, [navigationSignature, activeId, loading, workspace?.project.id]);
+
+  const goBack = () => {
+    if (Number(window.history.state?.teamcreatorDepth || 0) > 0) { window.history.back(); return; }
+    setPage('context'); setContextPanel('sources'); setOverlay(null); setManualOpen(false); setSelectedNode(null);
+  };
 
   const refreshProjects = async (preferredId?: string) => {
     const result = await api('/projects');
@@ -263,12 +304,26 @@ function App() {
 
   useEffect(() => {
     let live = true;
-    Promise.allSettled([api('/projects'), api('/provider')]).then(([projectsResult, providerResult]) => {
+    Promise.allSettled([api('/projects'), api('/provider')]).then(async ([projectsResult, providerResult]) => {
       if (!live) return;
       if (projectsResult.status === 'fulfilled') {
-        const next = listFrom<Project>(projectsResult.value, 'projects');
+        let next = listFrom<Project>(projectsResult.value, 'projects');
+        let target = next.find((item) => item.id === initialNavigation.projectId);
+        if (!target && import.meta.env.VITE_PUBLIC_DEMO === 'true') {
+          try {
+            const result = await api('/projects/presentation', { method: 'POST', body: '{}' });
+            if (!live) return;
+            target = result.project;
+            next = [target!, ...next.filter((item) => item.id !== target!.id)];
+          } catch (reason: any) { if (live) setError(reason.message || 'Nu am putut deschide demonstrația.'); }
+        }
+        if (!target && !next.length && import.meta.env.VITE_PUBLIC_DEMO !== 'true') {
+          try { const result = await api('/projects/demo', { method: 'POST', body: '{}' }); target = result.project; next = [target!]; }
+          catch (reason: any) { if (live) setError(reason.message); }
+        }
+        if (!live) return;
         setProjects(next);
-        if (next.length) setActiveId(next[0].id);
+        if (target || next.length) setActiveId(target?.id || next[0].id);
       } else setError(projectsResult.reason?.message || 'Could not load projects.');
       if (providerResult.status === 'fulfilled') setProvider(providerResult.value as any);
       else setProvider({ status: 'unavailable' });
@@ -336,7 +391,9 @@ function App() {
       const created = (result as any).project || result;
       const id = created.id || (result as any).id;
       await refreshProjects(id);
-      setActiveId(id); setPage('map'); setOverlay(null);
+      setActiveId(id); setPage('context'); setContextPanel('sources'); setOverlay(null);
+      setSelectedNode(null); setTeamView({ group: 'team', taskView: 'list' }); setDecisionTab('pending');
+      setFocusedDecisionId(''); setFocusedSourceId(''); setFocusedSourceRef(null);
     } catch (reason: any) { setError(reason.message || 'Could not create the sample project.'); }
     finally { setBusy(false); }
   };
@@ -586,6 +643,9 @@ function App() {
   }
 
   const openRecord = (kind: 'member' | 'task' | 'deliverable', id: string) => {
+    setTeamView((current) => kind === 'member'
+      ? { ...current, group: 'team', memberId: id, taskId: undefined }
+      : { ...current, group: 'tasks', taskView: 'list', taskId: id });
     setSelectedNode({ kind, id });
     setPage('map');
     setMobileNavOpen(false);
@@ -654,7 +714,7 @@ function App() {
           : 'Verific starea procesării';
 
   if (loading && !workspace && !projects.length) {
-    return <div className="loading-screen"><LoaderCircle className="spin" size={22} /><span>Opening your workspace</span></div>;
+    return <div className="loading-screen"><LoaderCircle className="spin" size={22} /><span>Deschid proiectul…</span></div>;
   }
 
   return (
@@ -664,8 +724,10 @@ function App() {
         activeId={activeId} page={page} pendingCount={pendingProposals.length}
         providerText={providerText} providerMessage={String(provider?.message || '')} providerDegraded={providerDegraded}
         hasProject={Boolean(project)} exporting={Boolean(exportingFormat)} exportMenuOpen={exportMenuOpen}
-        onProjectChange={(id) => { setActiveId(id); setSelectedNode(null); setFocusedSourceId(''); setFocusedSourceRef(null); setPage('context'); setContextPanel('sources'); }}
-        onPageChange={setPage} onCreate={() => setOverlay('create')} onImport={() => setOverlay('ingest')}
+        onProjectChange={(id) => { setActiveId(id); setSelectedNode(null); setTeamView({ group: 'team', taskView: 'list' }); setDecisionTab('pending'); setFocusedDecisionId(''); setFocusedSourceId(''); setFocusedSourceRef(null); setPage('context'); setContextPanel('sources'); }}
+        onPageChange={(next) => { setPage(next); setOverlay(null); setManualOpen(false); setExportMenuOpen(false); }}
+        onBack={goBack} canGoBack={historyDepth > 0 || page !== 'context' || contextPanel !== 'sources'}
+        onCreate={() => setOverlay('create')} onImport={() => setOverlay('ingest')}
         onToggleExport={() => setExportMenuOpen(value => !value)}
         exportMenu={exportMenuOpen && <div className="export-menu" role="menu" aria-label="Export proiect">
               <div className="export-menu-heading"><strong>Descarcă o copie</strong><button className="icon-button tiny" aria-label="Închide meniul exportului" onClick={() => setExportMenuOpen(false)}><X size={14} /></button></div>
@@ -678,7 +740,7 @@ function App() {
       <main className="content-area">
         {error && <div className="error-banner"><AlertCircle size={17} /><span>{error}</span><button className="icon-button tiny" onClick={() => setError('')} aria-label="Închide mesajul"><X size={15} /></button></div>}
         {!project ? (
-          <WelcomeState onCreate={() => setOverlay('create')} onDemo={createDemo} onAiDemo={runAiDemo} busy={busy} provider={provider} />
+          <div className="content-loading"><button className="primary-action" onClick={createDemo} disabled={busy}>Deschide proiectul demonstrativ</button></div>
         ) : loading && !workspace ? (
           <div className="content-loading"><LoaderCircle className="spin" size={20} /> Deschid contextul proiectului…</div>
         ) : workspace ? (
@@ -690,19 +752,18 @@ function App() {
               proposalBusyId={proposalBusyId} provider={provider} focusSourceId={focusedSourceId} focusRef={focusedSourceRef}
               onClearFocus={() => { setFocusedSourceRef(null); setFocusedSourceId(''); }}
               storageMode={import.meta.env.VITE_PUBLIC_DEMO === 'true' ? 'browser' : 'server'}
-              toolbarContent={<><label className="ai-sharing-control"><input type="checkbox" checked={aiShareEnabled} onChange={(event) => setAiShareEnabled(event.target.checked)} /><span className="ai-sharing-switch" /><span>Permite AI</span></label>
-                {import.meta.env.VITE_PUBLIC_DEMO === 'true' && <button className="text-action snapshot-import-action" onClick={() => snapshotInputRef.current?.click()} disabled={snapshotImporting}>{snapshotImporting ? 'Import…' : 'Importă snapshot'}</button>}
+              toolbarContent={<>
+                {import.meta.env.VITE_PUBLIC_DEMO === 'true' && <button className="text-action snapshot-import-action" onClick={() => snapshotInputRef.current?.click()} disabled={snapshotImporting}>{snapshotImporting ? 'Import…' : 'Importă proiect'}</button>}
                 <input ref={snapshotInputRef} type="file" accept=".json,application/json" hidden onChange={importProjectSnapshot} />
-                {snapshotImportMessage && <span role="status">{snapshotImportMessage}</span>}
-                {aiShareEnabled && <span className="ai-sharing-note">Textul surselor poate fi trimis furnizorului AI configurat la procesare.</span>}</>}
+                {snapshotImportMessage && <span role="status">{snapshotImportMessage}</span>}</>}
               reviewContent={<UpdatesPage workspace={workspace} text={checkinText} setText={setCheckinText} sourceName={checkinSource} setSourceName={setCheckinSource} onSubmit={sendCheckin} onContinueModelReview={continueCheckinReview} coverageMessage={checkinCoverageMessage} continuationPending={checkinContinuationIds.length > 0} retrying={retryingSources} busy={busy} jobPhase={jobPhase} proposals={pendingProposals} onDecide={decideProposal} onReviewItem={reviewProposalItem} onOpenSource={(ref) => openSource(ref.source_id, ref)} proposalBusyId={proposalBusyId} sent={checkinSent} />}
               historyContent={<HistoryPage workspace={workspace} />}
             />}
-            {page === 'map' && <TeamWorkspace workspace={workspace} focusedRecord={selectedNode} onOpenSource={(ref) => openSource(ref.source_id, ref)}
+            {page === 'map' && <TeamWorkspace workspace={workspace} focusedRecord={selectedNode} viewState={teamView} onViewStateChange={(next) => { setTeamView(next); setSelectedNode(null); }} onOpenSource={(ref) => openSource(ref.source_id, ref)}
               onSave={updateRecord} onCreate={(kind = 'task') => { setManualKind(kind); setManualOpen(true); }} simulationOutput={simulationOutput}
               onOpenDecision={(id) => { setFocusedDecisionId(id); setPage('diagnostic'); }} />}
             <div className="simulation-host" hidden={page !== 'simulation'}><Simulation workspace={workspace} onResult={setSimulationOutput} initialIntervention={diagnosticIntervention} autoRunKey={simulationRunRequest} /></div>
-            {page === 'diagnostic' && <DecisionsWorkspace workspace={workspace} simulationOutput={simulationOutput} focusedRecordId={focusedDecisionId}
+            {page === 'diagnostic' && <DecisionsWorkspace workspace={workspace} simulationOutput={simulationOutput} focusedRecordId={focusedDecisionId} activeTab={decisionTab} onTabChange={setDecisionTab}
               onRunSimulation={() => setPage('simulation')}
               onReviewProposalItem={(proposalId, itemId, body) => performReview(proposalId, `items/${encodeURIComponent(itemId)}/review`, body)}
               onApplyProposalItems={(proposalId, itemIds) => performReview(proposalId, 'apply', { itemIds })}
@@ -746,6 +807,7 @@ function WelcomeState({ onCreate, onDemo, onAiDemo, busy, provider }: { onCreate
 }
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  useEffect(() => { const close = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close); }, [onClose]);
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="modal-card" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Închide"><X size={18} /></button></div>{children}</section></div>;
 }
 

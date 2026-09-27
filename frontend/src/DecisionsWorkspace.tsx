@@ -10,6 +10,8 @@ type DraftChannel = 'email' | 'teams';
 type ReviewBody = { action: 'reject' | 'correct'; reason: string; fields?: Record<string, unknown> };
 
 export interface DecisionsWorkspaceProps {
+  activeTab?: DecisionTab;
+  onTabChange?: (tab: DecisionTab) => void;
   workspace: ProjectWorkspace;
   simulationOutput?: SimulationOutput | null;
   focusedRecordId?: string | null;
@@ -50,8 +52,10 @@ const statusOptions = [
   { value: 'rejected', label: 'Respins' },
 ];
 
-export default function DecisionsWorkspace({ workspace, simulationOutput, focusedRecordId, onReviewProposalItem, onApplyProposalItems, onSaveRecord, onRunScenario, onRunSimulation, onOpenSource, onOpenRecord }: DecisionsWorkspaceProps) {
-  const [tab, setTab] = useState<DecisionTab>('pending');
+export default function DecisionsWorkspace({ workspace, simulationOutput, focusedRecordId, onReviewProposalItem, onApplyProposalItems, onSaveRecord, onRunScenario, onRunSimulation, onOpenSource, onOpenRecord, activeTab, onTabChange }: DecisionsWorkspaceProps) {
+  const [localTab, setLocalTab] = useState<DecisionTab>('pending');
+  const tab = activeTab || localTab;
+  const setTab = (next: DecisionTab) => { setLocalTab(next); onTabChange?.(next); };
   const [selectedKey, setSelectedKey] = useState('');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
