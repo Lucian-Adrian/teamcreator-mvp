@@ -170,9 +170,22 @@
   .context-v7-heading-actions > .context-v7-add-button { margin-left: auto; }
   .context-v7-tabs { gap: 3px; overflow-x: auto; }
   .context-v7-tab { min-width: max-content; padding-inline: 9px; font-size: 13px; }
-  .ctx-source-grid { min-width: 570px; grid-template-columns: minmax(230px,3fr) repeat(4,minmax(72px,1fr)); }
+  .ctx-source-grid { min-width: 0; grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .ctx-source-grid-head { display: none; }
+  .ctx-source-row { grid-template-rows: auto auto; row-gap: 7px; column-gap: 5px; min-height: 0; padding: 10px 11px; }
+  .ctx-source-name-cell { grid-column: 1/-1; grid-row: 1; gap: 9px; padding: 0; }
+  .ctx-source-name-cell strong { white-space: normal; overflow-wrap: anywhere; }
+  .ctx-source-row > .ctx-phase { grid-row: 2; display: grid; grid-template-columns: 16px minmax(0,1fr); grid-template-rows: auto auto; align-items: center; justify-items: center; gap: 3px 4px; min-height: 42px; padding: 4px 2px; border: 1px solid #e9eef4; border-radius: 6px; background: #fff; }
+  .ctx-source-row > .ctx-phase::before { grid-column: 1/-1; grid-row: 1; color: #71809a; font-size: 10px; line-height: 1.1; text-align: center; white-space: nowrap; }
+  .ctx-source-row > .ctx-phase:nth-child(2)::before { content: 'Încărcat'; }
+  .ctx-source-row > .ctx-phase:nth-child(3)::before { content: 'Procesat'; }
+  .ctx-source-row > .ctx-phase:nth-child(4)::before { content: 'Extras'; }
+  .ctx-source-row > .ctx-phase:nth-child(5)::before { content: 'Verificat'; }
+  .ctx-source-row > .ctx-phase > span { grid-column: 1; grid-row: 2; width: 16px; height: 16px; }
+  .ctx-source-row > .ctx-phase > span svg { width: 11px; height: 11px; }
+  .ctx-source-row > .ctx-phase > small { grid-column: 2; grid-row: 2; font-size: 9px; text-align: left; white-space: normal; overflow-wrap: anywhere; }
   .ctx-source-list-summary { min-height: 48px; }
-  .ctx-source-table-scroll { max-height: 320px; }
+  .ctx-source-table-scroll { max-height: 380px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
   .ctx-extraction-status { align-items: flex-start; flex-wrap: wrap; }
   .ctx-extraction-status > button { margin-left: 38px; }
   .ctx-inspector { padding: 16px; }
@@ -189,4 +202,10 @@
   .ctx-field-row { grid-template-columns: 84px minmax(0,1fr); }
   .ctx-source-quote > div { flex-wrap: wrap; }
   .ctx-source-quote > div button { width: 100%; margin-left: 20px; }
+  .ctx-source-row { column-gap: 4px; padding-inline: 9px; }
+  .ctx-source-row > .ctx-phase { grid-template-columns: 14px minmax(0,1fr); gap: 3px; padding-inline: 1px; }
+  .ctx-source-row > .ctx-phase::before { font-size: 10px; }
+  .ctx-source-row > .ctx-phase > span { width: 14px; height: 14px; }
+  .ctx-source-row > .ctx-phase > span svg { width: 10px; height: 10px; }
+  .ctx-source-row > .ctx-phase > small { font-size: 9px; }
 }

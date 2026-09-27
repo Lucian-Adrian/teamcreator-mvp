@@ -1467,6 +1467,16 @@ h1, h2, h3, p { margin-top: 0; }
   .app-shell .app-header .workflow-tab-label { font-size: 11.5px; }
 }
 
+@media (min-width: 1051px) {
+  .app-shell .app-header .workflow-tab-icon { display: none; }
+}
+@media (min-width: 1051px) and (max-width: 1280px) {
+  .app-shell .app-header .workflow-tabs { gap: 2px; }
+  .app-shell .app-header .workflow-tab { gap: 4px; padding-inline: 2px; }
+  .app-shell .app-header .workflow-tab-number { width: 22px; height: 22px; flex: 0 0 22px; font-size: 11px; }
+  .app-shell .app-header .workflow-tab-label { font-size: 13px; }
+}
+
 .app-shell .app-header .workflow-tab,
 .app-shell .app-header .workflow-tab-icon svg { transition: color .14s ease, border-color .14s ease, transform .14s ease; }
 .app-shell .app-header .workflow-tab-active .workflow-tab-icon svg { transform: scale(1.04); }
