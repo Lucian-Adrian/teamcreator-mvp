@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowRight, ArrowUpRight, Check, CheckCheck, Clock3, FileText, History, Info, Plus, ShieldCheck, X } from 'lucide-react';
 import type { ProjectProposal, ProjectRecord, ProjectSource, ProjectWorkspace, SourceRef } from '../../shared/types';
-import IntegrationPanel, { IntegrationSummaryStrip } from './IntegrationPanel';
+import { isPresentationDemo } from '../../shared/presentation-demo';
+import IntegrationPanel from './IntegrationPanel';
 import type { IntegrationId, IntegrationStatus } from './IntegrationPanel';
 import './context-workspace.css';
 
-export type ContextTab = 'sources' | 'integrations' | 'review' | 'history';
+export type ContextTab = 'sources' | 'review' | 'history';
 
 export interface ContextWorkspaceProps {
   workspace: ProjectWorkspace;
@@ -38,7 +39,7 @@ type SourceRecordFact = { record: ProjectRecord; ref: SourceRef };
 
 const kindLabels: Record<string, string> = { member: 'Persoană / rol', task: 'Sarcină', deliverable: 'Livrabil', risk: 'Risc', decision: 'Decizie' };
 const tabLabels: Array<{ id: ContextTab; label: string }> = [
-  { id: 'sources', label: 'Surse' }, { id: 'integrations', label: 'Integrări' }, { id: 'review', label: 'De verificat' }, { id: 'history', label: 'Istoric' },
+  { id: 'sources', label: 'Surse' }, { id: 'review', label: 'De verificat' }, { id: 'history', label: 'Istoric' },
 ];
 
 function allRecords(workspace: ProjectWorkspace): ProjectRecord[] {
@@ -76,7 +77,13 @@ function acceptedSourceFacts(workspace: ProjectWorkspace, sourceId: string): Sou
 }
 
 function preferredSourceId(workspace: ProjectWorkspace): string {
-  return workspace.sources.find((source) => pendingSourceFacts(workspace, source.id).length > 0)?.id || workspace.sources[0]?.id || '';
+  let preferredId = '';
+  let highestPendingCount = 0;
+  for (const source of workspace.sources) {
+    const count = pendingSourceFacts(workspace, source.id).length;
+    if (count > highestPendingCount) { preferredId = source.id; highestPendingCount = count; }
+  }
+  return preferredId || workspace.sources[0]?.id || '';
 }
 
 function sourceLifecycle(workspace: ProjectWorkspace, source: ProjectSource) {
@@ -114,11 +121,11 @@ function phaseText(phase: string, state: PhaseState, source: ProjectSource, life
     loaded: { complete: 'Sursa este păstrată în proiect.', partial: '', waiting: '', unavailable: '', empty: '' },
     parsed: { complete: 'Textul a fost citit de parser.', partial: 'Parserul nu a terminat sau a raportat conținut gol.', waiting: 'Așteaptă citirea fișierului.', unavailable: 'Formatul nu este suportat în acest mediu.', empty: 'Nu a fost extras text.' },
     extraction: {
-      complete: 'Extragerea raportată s-a încheiat.', partial: lifecycle.pendingCount ? `${lifecycle.pendingCount} afirmații așteaptă verificarea.` : 'Există afirmații, dar acoperirea completă nu este raportată.',
+      complete: 'Extragerea raportată s-a încheiat.', partial: lifecycle.pendingCount ? `${lifecycle.pendingCount} ${lifecycle.pendingCount === 1 ? 'afirmație așteaptă' : 'afirmații așteaptă'} verificarea.` : 'Există afirmații, dar acoperirea completă nu este raportată.',
       waiting: 'Nu există o confirmare că extragerea a rulat.', unavailable: source.extraction_note || 'Extragerea nu este disponibilă.', empty: 'Nu au fost găsite afirmații cu sursă.',
     },
     review: {
-      complete: 'Afirmațiile asociate au fost acceptate sau respinse.', partial: `${lifecycle.pendingCount || 'Unele'} afirmații nu au fost încă verificate.`,
+      complete: 'Afirmațiile asociate au fost acceptate sau respinse.', partial: lifecycle.pendingCount === 1 ? '1 afirmație nu a fost încă verificată.' : lifecycle.pendingCount ? `${lifecycle.pendingCount} afirmații nu au fost încă verificate.` : 'Unele afirmații nu au fost încă verificate.',
       waiting: 'Încă nu există afirmații de verificat.', unavailable: 'Extragerea nu este disponibilă.', empty: 'Nicio afirmație extrasă pentru verificare.',
     },
   };
@@ -128,11 +135,14 @@ function phaseText(phase: string, state: PhaseState, source: ProjectSource, life
 function PhaseMark({ label, phase, state, source, lifecycle }: { label: string; phase: string; state: PhaseState; source: ProjectSource; lifecycle: ReturnType<typeof sourceLifecycle> }) {
   const title = phaseText(phase, state, source, lifecycle);
   const icon = state === 'complete' ? <Check size={13} /> : state === 'partial' ? <AlertCircle size={13} /> : state === 'unavailable' ? <X size={13} /> : state === 'empty' ? <Info size={13} /> : <Clock3 size={13} />;
-  return <span className={`ctx-phase ctx-phase-${state}`} title={title} aria-label={`${label}: ${title}`}><span>{icon}</span><small>{state === 'complete' ? 'Da' : state === 'empty' ? 'N/A' : state === 'partial' ? 'Parțial' : state === 'unavailable' ? 'Nu' : 'Așteaptă'}</small></span>;
+  const stateLabel = phase === 'review'
+    ? state === 'complete' ? 'Verificat' : state === 'partial' ? 'De verificat' : state === 'empty' ? 'N/A' : state === 'unavailable' ? 'Indisponibil' : 'Așteaptă'
+    : state === 'complete' ? 'Da' : state === 'empty' ? 'N/A' : state === 'partial' ? 'Parțial' : state === 'unavailable' ? 'Nu' : 'Așteaptă';
+  return <span className={`ctx-phase ctx-phase-${state}`} title={title} aria-label={`${label}: ${title}`}><span>{icon}</span><small>{stateLabel}</small></span>;
 }
 
 function extractionNote(source: ProjectSource) {
-  if (source.fixture_only) return 'Sursă demonstrativă sintetică. Această mostră pregătită nu a fost extrasă de un model AI.';
+  if (source.fixture_only) return 'Sursă sintetică de demonstrație, cu afirmații și citate pregătite pentru verificare.';
   const note = source.extraction_note || '';
   const match = note.match(/^No model ran\. Deterministic browser rules mapped (\d+) structured rows? into pending cited proposals\.$/);
   return match ? `Regulile de import au pregătit ${match[1]} propuneri din tabel. Nu a rulat un model AI.` : note;
@@ -277,6 +287,14 @@ export default function ContextWorkspace(props: ContextWorkspaceProps) {
       <div className="context-v7-source-layout">
         <div className="context-v7-source-column">
           <section className="ctx-source-list-card" aria-label="Lista surselor proiectului">
+            <div className={`ctx-extraction-status ${pendingCount ? 'has-pending' : ''}`} role="status">
+              <span className="ctx-extraction-status-mark">{pendingCount ? <AlertCircle size={17} /> : <CheckCheck size={17} />}</span>
+              <span className="ctx-extraction-status-copy"><strong>{pendingCount ? 'Date extrase.' : workspace.sources.some((source) => sourceLifecycle(workspace, source).hasFacts) ? 'Date extrase și verificate.' : workspace.sources.some((source) => source.extraction_coverage === 'complete') ? 'Extragerea s-a încheiat.' : workspace.sources.some((source) => source.parser_status === 'parsed') ? 'Fișierele sunt citite; extragerea nu este confirmată.' : 'Adaugă surse pentru a începe.'}</strong>
+                {pendingCount > 0 && <small>Mai sunt {pendingCount} de verificat.</small>}
+                {!pendingCount && !workspace.sources.some((source) => sourceLifecycle(workspace, source).hasFacts) && workspace.sources.some((source) => source.extraction_coverage === 'complete') && <small>Nu au fost găsite afirmații cu citat asociat.</small>}
+              </span>
+              {pendingCount > 0 && <button type="button" onClick={() => props.onTabChange('review')}>De verificat <ArrowRight size={14} /></button>}
+            </div>
             <div className="ctx-source-list-summary"><strong>{workspace.sources.length} {workspace.sources.length === 1 ? 'sursă' : 'surse'}</strong><span>·</span><strong>{pendingCount} {pendingCount === 1 ? 'verificare rămasă' : 'verificări rămase'}</strong></div>
             <div className="ctx-source-table-scroll">
               <div className="ctx-source-grid ctx-source-grid-head" aria-hidden="true"><span>Sursă</span><span>Încărcat</span><span>Procesat</span><span>Extras</span><span>Verificat</span></div>
@@ -294,13 +312,12 @@ export default function ContextWorkspace(props: ContextWorkspaceProps) {
             </div>
           </section>
           {props.retryResult && <div className="ctx-retry-result" role="status">{props.retryResult}</div>}
-          <IntegrationSummaryStrip connections={props.connections} onOpen={() => props.onTabChange('integrations')} />
+          <IntegrationPanel projectId={workspace.project.id} provider={props.provider} connections={props.connections} storageMode={props.storageMode} presentationDemo={isPresentationDemo(workspace)} />
         </div>
         {selectedSource ? <SourceInspector workspace={workspace} source={selectedSource} facts={selectedFacts} records={selectedRecords} focusRef={props.focusRef} onDecide={props.onDecide} onReviewItem={props.onReviewItem} onOpenSource={props.onOpenSource} onOpenRecord={props.onOpenRecord} onRetry={props.onRetry} retrying={props.retrying} proposalBusyId={props.proposalBusyId} /> : <aside className="ctx-inspector ctx-inspector-empty"><Info size={20} /><span>Selectează o sursă pentru detalii și afirmații citate.</span></aside>}
       </div>
       {props.onOpenMap && <div className="ctx-map-notice"><span><Check size={19} /></span><strong>Datele confirmate apar în hartă</strong><button type="button" onClick={props.onOpenMap}>Deschide harta <ArrowRight size={15} /></button></div>}
     </>}
-    {props.tab === 'integrations' && <IntegrationPanel provider={props.provider} connections={props.connections} storageMode={props.storageMode} />}
     {props.tab === 'review' && <div className="context-v7-embedded"><div className="ctx-embedded-heading"><div><h2>De verificat</h2><p>Revizuiește fiecare afirmație și citatul ei înainte ca proiectul să se schimbe.</p></div><span>{pendingCount} în așteptare</span></div><div className="ctx-embedded-content">{props.reviewContent || <div className="ctx-embedded-empty"><CheckCheck size={19} /><strong>Nu există schimbări propuse în așteptare</strong><p>Importurile și notele noi vor apărea aici pentru revizuire.</p></div>}</div></div>}
     {props.tab === 'history' && <div className="context-v7-embedded"><div className="ctx-embedded-heading"><div><h2>Istoric</h2><p>Acțiunile de revizuire și modificările acceptate ale proiectului.</p></div></div><div className="ctx-embedded-content">{props.historyContent || <div className="ctx-embedded-empty"><History size={19} /><strong>Istoricul este gol</strong></div>}</div></div>}
   </section>;

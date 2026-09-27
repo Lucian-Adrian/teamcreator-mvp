@@ -5,7 +5,7 @@ import worker from './live-worker.mjs';
 
 const root = path.resolve('dist-live');
 const port = Number(process.env.TC_LIVE_PREVIEW_PORT || 5187);
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url || '/', `http://127.0.0.1:${port}`);

@@ -1,0 +1,48 @@
+{
+  "jira.ico": {
+    "brand": "Jira",
+    "source": "https://jira.atlassian.com/favicon.ico",
+    "product": "https://www.atlassian.com/software/jira"
+  },
+  "trello.ico": {
+    "brand": "Trello",
+    "source": "https://trello.com/favicon.ico",
+    "product": "https://trello.com/"
+  },
+  "asana.ico": {
+    "brand": "Asana",
+    "source": "https://asana.com/favicon.ico",
+    "product": "https://asana.com/"
+  },
+  "sharepoint.svg": {
+    "brand": "SharePoint",
+    "source": "https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product/svg/sharepoint_48x1.svg",
+    "product": "https://www.microsoft.com/microsoft-365/sharepoint/collaboration"
+  },
+  "gmail.ico": {
+    "brand": "Gmail",
+    "source": "https://mail.google.com/favicon.ico",
+    "product": "https://mail.google.com/"
+  },
+  "outlook.ico": {
+    "brand": "Outlook",
+    "source": "https://outlook.office.com/mail/favicon.ico",
+    "product": "https://outlook.office.com/"
+  },
+  "claude.png": {
+    "brand": "Claude",
+    "source": "https://claude.ai/images/claude_app_icon.png",
+    "product": "https://claude.ai/"
+  },
+  "chatgpt.png": {
+    "brand": "ChatGPT",
+    "source": "https://images.ctfassets.net/j22is2dtoxu1/intercom-img-d177d076c9a5453052925143/49d5d812b0a6fcc20a14faa8c629d9fb/icon-ios-1024_401x.png?fm=png&q=80&w=1024",
+    "product": "https://help.openai.com/en/articles/7905742-what-does-the-official-chatgpt-ios-app-icon-look-like"
+  },
+  "codex.png": {
+    "brand": "OpenAI Codex",
+    "source": "https://images.ctfassets.net/j22is2dtoxu1/intercom-img-d177d076c9a5453052925143/49d5d812b0a6fcc20a14faa8c629d9fb/icon-ios-1024_401x.png?fm=png&q=80&w=1024",
+    "product": "https://openai.com/codex/",
+    "note": "OpenAI's official knot mark, shown with the Codex product label; the checked official pages do not publish a separate Codex mark."
+  }
+}
