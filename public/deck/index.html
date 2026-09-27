@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="TeamCreator hackathon pitch and Q&A slides.">
+  <title>TeamCreator | Pitch</title>
+  <link rel="stylesheet" href="/deck/viewer.css?v=20260927-1">
+  <script src="/deck/viewer.js?v=20260927-1" defer></script>
+</head>
+<body>
+  <main class="viewer">
+    <header class="toolbar">
+      <a class="brand" href="/" target="_blank" rel="noopener" aria-label="Open TeamCreator demo">
+        <img src="/brand/teamcreator-official-black-on-white.png" alt="TeamCreator" width="2170" height="725">
+      </a>
+      <div class="actions">
+        <div class="sections" role="group" aria-label="Presentation section">
+          <button id="pitch" type="button" aria-pressed="true">Pitch <span>15</span></button>
+          <button id="qa" type="button" aria-pressed="false">Q&amp;A <span>12</span></button>
+        </div>
+        <button id="choose" type="button" aria-haspopup="dialog">Slides</button>
+        <button id="fullscreen" type="button" title="Fullscreen (F)" aria-pressed="false">Fullscreen</button>
+      </div>
+    </header>
+    <section class="stage" aria-label="Current slide" tabindex="0">
+      <img id="slide" src="/deck/slides/01.png" alt="Slide 1: TeamCreator" width="1672" height="941" fetchpriority="high" draggable="false">
+      <div id="load-error" class="load-error" hidden>Slide could not load. <button id="retry" type="button">Retry</button></div>
+    </section>
+    <footer class="controls">
+      <button id="previous" type="button" aria-label="Previous slide" title="Previous slide (Left arrow)">←</button>
+      <div class="position"><span id="counter" aria-live="polite">1 / 15</span><span id="slide-title">TeamCreator</span></div>
+      <button id="next" type="button" aria-label="Next slide" title="Next slide (Right arrow)">→</button>
+      <button id="enter-qa" type="button" hidden>Open Q&amp;A</button>
+      <span class="shortcut">← → navigate · F fullscreen · S slides</span>
+    </footer>
+    <button id="leave-fullscreen" type="button" hidden>Exit fullscreen</button>
+    <dialog id="slide-picker" aria-labelledby="picker-title">
+      <div class="dialog-heading"><h1 id="picker-title">Slides</h1><button id="close-picker" type="button" aria-label="Close slide picker">Close</button></div>
+      <h2>Pitch</h2><div id="pitch-list" class="slide-list"></div>
+      <h2>Q&amp;A</h2><div id="qa-list" class="slide-list"></div>
+    </dialog>
+    <noscript>This presentation needs JavaScript for slide navigation.</noscript>
+  </main>
+</body>
+</html>

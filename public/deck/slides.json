@@ -1,0 +1,208 @@
+{
+  "title": "TeamCreator",
+  "date": "2026-09-27",
+  "coreCount": 15,
+  "slides": [
+    {
+      "number": 1,
+      "title": "TeamCreator",
+      "alt": "TeamCreator: project delivery.",
+      "section": "pitch",
+      "src": "/deck/slides/01.png?v=8e48df7a456f"
+    },
+    {
+      "number": 2,
+      "title": "Delivery coordination",
+      "alt": "Delivery coordination: the VP manages the portfolio while the PM manages people, deadlines and client commitments.",
+      "section": "pitch",
+      "src": "/deck/slides/02.png?v=14199cb3e09f"
+    },
+    {
+      "number": 3,
+      "title": "PM discovery",
+      "alt": "PM discovery: 16 interviews overall. Six PMs spoken to at GigaHack, all six using Claude. Founder-reported discovery.",
+      "section": "pitch",
+      "src": "/deck/slides/03.png?v=7fed517e0739"
+    },
+    {
+      "number": 4,
+      "title": "Research",
+      "alt": "Research: analytics and visualization 53%, collaboration 53%, workflow automation 51%. Desired capabilities from Smartsheet PPM research.",
+      "section": "pitch",
+      "src": "/deck/slides/04.png?v=2dfbadec0b70"
+    },
+    {
+      "number": 5,
+      "title": "Digital twin",
+      "alt": "Digital twin: structured project state connects people, commitments, dependencies, history and decisions.",
+      "section": "pitch",
+      "src": "/deck/slides/05.png?v=d819c6e7c8a4"
+    },
+    {
+      "number": 6,
+      "title": "PM workspace",
+      "alt": "PM workspace: the agent proposes tasks and decisions; the PM reviews evidence and retains final authority.",
+      "section": "pitch",
+      "src": "/deck/slides/06.png?v=4bce6b70eb04"
+    },
+    {
+      "number": 7,
+      "title": "VP portfolio",
+      "alt": "VP portfolio: an illustrative view of project progress, delivery risks and decisions across projects.",
+      "section": "pitch",
+      "src": "/deck/slides/07.png?v=8436cf88ea9e"
+    },
+    {
+      "number": 8,
+      "title": "MVP",
+      "alt": "MVP: a synthetic project demonstration linking context, people, tasks, scenarios and decisions.",
+      "section": "pitch",
+      "src": "/deck/slides/08.png?v=f05934d3fc5e"
+    },
+    {
+      "number": 9,
+      "title": "Risk scenarios",
+      "alt": "Risk scenarios: compare the baseline with an intervention under explicit model assumptions.",
+      "section": "pitch",
+      "src": "/deck/slides/09.png?v=11f2f1689c77"
+    },
+    {
+      "number": 10,
+      "title": "Reporting",
+      "alt": "Reporting: draft progress and decision reports for clients and sponsors.",
+      "section": "pitch",
+      "src": "/deck/slides/10.png?v=3eb588e62dac"
+    },
+    {
+      "number": 11,
+      "title": "Data and access",
+      "alt": "Data and access: a proposed privacy boundary for scoped project context and external AI access.",
+      "section": "pitch",
+      "src": "/deck/slides/11.png?v=987cde8d5450"
+    },
+    {
+      "number": 12,
+      "title": "Pricing",
+      "alt": "Pricing: proposed entry tier of 80 US dollars per project manager per month, with a free tier.",
+      "section": "pitch",
+      "src": "/deck/slides/12.png?v=2d5b8308cd39"
+    },
+    {
+      "number": 13,
+      "title": "Adoption",
+      "alt": "Adoption: PM discovery and early adopters can lead to champions inside organizations.",
+      "section": "pitch",
+      "src": "/deck/slides/13.png?v=4dd6fb648236"
+    },
+    {
+      "number": 14,
+      "title": "Team",
+      "alt": "Team: Lucian, AI Stack Engineer, 4 years; Tudor, Serial Entrepreneur, 16 years; Cristian, ML and Backend Engineer, 5 years; Vadim, Innovation and Technology Transfer Expert, 14 years.",
+      "section": "pitch",
+      "src": "/deck/slides/14.png?v=d231db48b519"
+    },
+    {
+      "number": 15,
+      "title": "Roadmap",
+      "alt": "Roadmap: product and pilot milestones for the next stage of TeamCreator.",
+      "section": "pitch",
+      "src": "/deck/slides/15.png?v=24a66c15e17a"
+    },
+    {
+      "number": 16,
+      "title": "Differentiation",
+      "alt": "Differentiation. Jira/Rovo: work tracking and agent actions. Planner/Copilot: plans, portfolios and reports. RiskyProject: schedule and cost simulation. TeamCreator target: cross-tool context, scenarios and PM decisions. Integrations and added value remain to prove.",
+      "section": "qa",
+      "question": "How is this different from what already exists?",
+      "src": "/deck/slides/16.png?v=8c531aeb5c0a"
+    },
+    {
+      "number": 17,
+      "title": "Current state",
+      "alt": "Current state. Working: project views, scenario engine and report previews. Synthetic: people, tasks, demo sources and opening scenario. Planned: live connectors, installed AI host and shared VP portfolio. A local agent tool path was demonstrated separately.",
+      "section": "qa",
+      "question": "What's real, and what's mocked?",
+      "src": "/deck/slides/17.png?v=2da537cc90cd"
+    },
+    {
+      "number": 18,
+      "title": "Real data",
+      "alt": "Real data. Structured records lead to PM review and scenario comparison. Inputs include tasks, owners, dates and dependencies. Synthetic import verified; authorized customer-case evaluation is next.",
+      "section": "qa",
+      "question": "Does it work with real data?",
+      "src": "/deck/slides/18.png?v=536c5b679c36"
+    },
+    {
+      "number": 19,
+      "title": "Pilot readiness",
+      "alt": "Pilot readiness. Approved project and data scope; secure environment and input path; PM review and scenario evaluation; agreed outcome measures. External AI requires its access and privacy boundary first.",
+      "section": "qa",
+      "question": "What would you need to go live with a first team?",
+      "src": "/deck/slides/19.png?v=829bb09adc3e"
+    },
+    {
+      "number": 20,
+      "title": "Production readiness",
+      "alt": "Production readiness. Access: identity and project permissions. Reliability: shared storage and recovery. Integrations: scoped sync and audit history. Operations: monitoring, support and privacy. The shared VP portfolio follows the same controls.",
+      "section": "qa",
+      "question": "What is still needed for an organization to rely on it?",
+      "src": "/deck/slides/20.png?v=5148c93d9c17"
+    },
+    {
+      "number": 21,
+      "title": "Simulation",
+      "alt": "Simulation. Inputs: duration ranges, dependencies, capacity and calendars. Monte Carlo produces completion ranges and compares baseline with intervention. Results are conditional on input assumptions; calibration remains to do.",
+      "section": "qa",
+      "question": "How do the predictions work, and how accurate are they?",
+      "src": "/deck/slides/21.png?v=f0399f2b2c99"
+    },
+    {
+      "number": 22,
+      "title": "Data protection",
+      "alt": "Data protection. Target architecture: customer records, minimum scoped context, approved AI tool. Identity mapping stays customer-controlled. Context uses pseudonymous IDs and permitted history. Pseudonymization is not anonymization.",
+      "section": "qa",
+      "question": "What employee data goes to the AI?",
+      "src": "/deck/slides/22.png?v=32ce80ef1d93"
+    },
+    {
+      "number": 23,
+      "title": "Agent actions",
+      "alt": "Agent actions. Agent: read context, run scenarios and propose changes. PM: review evidence, edit or reject, authorize changes. Target workflow; synthetic local tool path demonstrated; assistant integration planned.",
+      "section": "qa",
+      "question": "Can the AI make a decision or change a project by itself?",
+      "src": "/deck/slides/23.png?v=4e92e18c08de"
+    },
+    {
+      "number": 24,
+      "title": "Early adopters",
+      "alt": "Early adopters. A live milestone, cross-team dependency, accountable sponsor, approved data and repeat feedback. PM champion to delivery sponsor to organization. Initial segment to validate.",
+      "section": "qa",
+      "question": "Who will use this first, and how will you reach them?",
+      "src": "/deck/slides/24.png?v=9f3ae60fcc72"
+    },
+    {
+      "number": 25,
+      "title": "Pricing and value",
+      "alt": "Pricing and value. Proposed entry tier: 80 US dollars per PM per month. Five paid PMs cost 4,800 dollars a year. Value to validate: deadline exposure, action taken, outcome and contribution. No measured ROI is claimed.",
+      "section": "qa",
+      "question": "Who pays, why eighty dollars, and what is the return?",
+      "src": "/deck/slides/25.png?v=25aa1ba8ff91"
+    },
+    {
+      "number": 26,
+      "title": "Validation",
+      "alt": "Validation. Baseline: what did the PM already know? Decision: did the warning change an action? Outcome: what happened to the milestone? Record forecasts before outcomes; include errors and overrides.",
+      "section": "qa",
+      "question": "How will you prove this helps beyond a good-looking demo?",
+      "src": "/deck/slides/26.png?v=576ffa63de1e"
+    },
+    {
+      "number": 27,
+      "title": "Resources",
+      "alt": "Resources. A live project with a PM champion and delivery sponsor; an approved scoped case and data approver; repeated evaluation of decisions and milestone outcomes. Next gate: a supervised pilot.",
+      "section": "qa",
+      "question": "What do you need from us now?",
+      "src": "/deck/slides/27.png?v=31411db7fa6c"
+    }
+  ]
+}

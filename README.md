@@ -65,3 +65,9 @@ If enabling the public AI endpoint, configure Cloudflare Access and the required
 ## Source scope
 
 This repository contains the MVP source, tests, build configuration and synthetic assets. Runtime projects, uploaded documents, credentials, private exports and internal project records are excluded. The Git history starts with this standalone source release.
+
+## Hackathon presentation
+
+The approved pitch and Q&A slides are available at [live.teamcreator.ai/deck](https://live.teamcreator.ai/deck/). The viewer starts with the fifteen-slide pitch; the Q&A button opens twelve backup slides. Use arrow keys to navigate, F for fullscreen and S for the slide picker. Direct slide links use `#slide-17`, for example.
+
+The public package at `public/deck` contains the approved slide images, a public manifest with accessible descriptions and the static viewer. Presenter notes and private project evidence are not included. The live domain uses the private deployment configuration; the checked-in Wrangler configuration is a generic example for independent installations.
